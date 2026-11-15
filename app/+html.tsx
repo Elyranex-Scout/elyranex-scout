@@ -6,6 +6,8 @@ export default function Root({ children }: PropsWithChildren) {
   return (
     <html lang="en" style={{ height: "100%" }}>
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta
