@@ -1,10 +1,8 @@
-import { api, NetworkError, setDeviceId } from "@/src/api";
 import type { Category } from "@/src/ai";
 import type { Light } from "@/src/verdict";
 import { storage } from "@/src/utils/storage";
 
-const PENDING_KEY = "pending_items";
-const CACHE_KEY = "items_cache";
+const ITEMS_KEY = "elyranex_local_items_v1";
 
 export const ORIGINS = ["Mercadillo", "Tienda", "Wallapop", "Otro"] as const;
 export const PLATFORMS = ["Wallapop", "Vinted", "eBay", "Otro"] as const;
@@ -42,86 +40,92 @@ export type Item = Omit<NewItem, "photo_base64"> & {
   local_photo?: string | null;
 };
 
-async function readList<T>(key: string): Promise<T[]> {
-  const raw = await storage.getItem(key, "[]");
+async function readItems(): Promise<Item[]> {
+  const raw = await storage.getItem(ITEMS_KEY, "[]");
   try {
-    return JSON.parse(typeof raw === "string" ? raw : "[]") as T[];
+    const parsed = JSON.parse(typeof raw === "string" ? raw : "[]");
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
-const writeList = (key: string, list: unknown[]) => storage.setItem(key, JSON.stringify(list));
 
-const pendingToItem = (p: NewItem): Item => ({
-  ...p,
-  id: `pending-${p.client_id}`,
-  estado: "En stock",
-  gastos_extra: 0,
-  fecha_venta: null,
-  precio_venta: null,
-  comisiones: null,
-  plataforma: null,
-  has_photo: false,
-  pending: true,
-  local_photo: p.photo_base64 ? `data:image/jpeg;base64,${p.photo_base64}` : null,
-});
+const writeItems = (list: Item[]) => storage.setItem(ITEMS_KEY, JSON.stringify(list));
 
 export const newClientId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
-// Save online; if there is no coverage, queue locally and sync later.
 export async function createItem(item: NewItem): Promise<{ offline: boolean }> {
-  try {
-    await api<Item>("/items", { method: "POST", body: item }, 25000);
-    return { offline: false };
-  } catch (e) {
-    if (!(e instanceof NetworkError)) throw e;
-    const pending = await readList<NewItem>(PENDING_KEY);
-    const ok = await writeList(PENDING_KEY, [item, ...pending]);
-    if (!ok) throw new Error("Sin conexión y sin espacio para guardar en el teléfono.");
-    return { offline: true };
-  }
+  const current = await readItems();
+  const { photo_base64, ...rest } = item;
+  const savedItem: Item = {
+    ...rest,
+    id: item.client_id || newClientId(),
+    estado: "En stock",
+    gastos_extra: 0,
+    fecha_venta: null,
+    precio_venta: null,
+    comisiones: null,
+    plataforma: null,
+    has_photo: Boolean(photo_base64),
+    pending: false,
+    local_photo: photo_base64 ? `data:image/jpeg;base64,${photo_base64}` : null,
+  };
+  const ok = await writeItems([savedItem, ...current]);
+  if (!ok) throw new Error("No hay suficiente espacio en el teléfono para guardar el artículo.");
+  return { offline: false };
 }
 
 export async function syncPending(): Promise<number> {
-  const pending = await readList<NewItem>(PENDING_KEY);
-  if (!pending.length) return 0;
-  const left: NewItem[] = [];
-  let offline = false;
-  for (const p of pending) {
-    if (offline) {
-      left.push(p);
-      continue;
-    }
-    try {
-      await api<Item>("/items", { method: "POST", body: p }, 25000);
-    } catch (e) {
-      if (e instanceof NetworkError) offline = true;
-      left.push(p);
-    }
-  }
-  await writeList(PENDING_KEY, left);
-  return left.length;
+  return 0;
 }
 
 export async function fetchItems(): Promise<{ items: Item[]; offline: boolean }> {
-  await syncPending();
-  const pending = (await readList<NewItem>(PENDING_KEY)).map(pendingToItem);
-  try {
-    const items = await api<Item[]>("/items");
-    await writeList(CACHE_KEY, items);
-    return { items: [...pending, ...items], offline: false };
-  } catch (e) {
-    if (!(e instanceof NetworkError)) throw e;
-    const cache = await readList<Item>(CACHE_KEY);
-    return { items: [...pending, ...cache], offline: true };
-  }
+  const items = await readItems();
+  return { items, offline: false };
 }
 
-export const getItem = (id: string) => api<Item>(`/items/${id}`);
-export const addExpense = (id: string, amount: number) =>
-  api<Item>(`/items/${id}/expenses`, { method: "POST", body: { amount } });
-export const sellItem = (id: string, body: { precio_venta: number; comisiones: number; plataforma: SalePlatform }) =>
-  api<Item>(`/items/${id}/sell`, { method: "POST", body });
+export async function getItem(id: string): Promise<Item> {
+  const items = await readItems();
+  const found = items.find((i) => i.id === id);
+  if (!found) throw new Error("Artículo no encontrado");
+  return found;
+}
+
+export async function addExpense(id: string, amount: number): Promise<Item> {
+  const items = await readItems();
+  let updated: Item | null = null;
+  const next = items.map((i) => {
+    if (i.id !== id) return i;
+    updated = { ...i, gastos_extra: Math.round((i.gastos_extra + amount) * 100) / 100 };
+    return updated;
+  });
+  await writeItems(next);
+  if (!updated) throw new Error("Artículo no encontrado");
+  return updated;
+}
+
+export async function sellItem(
+  id: string,
+  body: { precio_venta: number; comisiones: number; plataforma: SalePlatform }
+): Promise<Item> {
+  const items = await readItems();
+  let updated: Item | null = null;
+  const next = items.map((i) => {
+    if (i.id !== id) return i;
+    updated = {
+      ...i,
+      estado: "Vendido",
+      fecha_venta: new Date().toISOString(),
+      precio_venta: body.precio_venta,
+      comisiones: body.comisiones,
+      plataforma: body.plataforma,
+    };
+    return updated;
+  });
+  await writeItems(next);
+  if (!updated) throw new Error("Artículo no encontrado");
+  return updated;
+}
 
 export const totalCost = (i: Item) => i.precio_pagado + i.gastos_extra;
 export const netProfit = (i: Item) => (i.precio_venta ?? 0) - (i.comisiones ?? 0) - totalCost(i);
@@ -140,7 +144,6 @@ export const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("es-ES"
 
 export const OLD_STOCK_DAYS = 45;
 
-// Suggested quick-sale price for stale stock: deeper discount the longer it sits, never below total cost.
 export function quickSalePrice(i: Item) {
   const days = daysInStock(i);
   const factor = days > 90 ? 0.65 : days > 60 ? 0.75 : 0.85;
@@ -150,18 +153,27 @@ export function quickSalePrice(i: Item) {
   return { price: Math.max(raw, floor), discount, atCost: raw <= floor };
 }
 
-export async function createBackupCode() {
-  await syncPending();
-  return api<{ code: string; expires_at: string; items: number }>("/backup/code", { method: "POST" });
+export async function createBackupCode(): Promise<{ code: string; expires_at: string; items: number }> {
+  const items = await readItems();
+  const payload = JSON.stringify(items);
+  return {
+    code: payload,
+    expires_at: "Sin caducidad (Copia local JSON)",
+    items: items.length,
+  };
 }
 
-export async function restoreBackup(code: string) {
-  await syncPending();
-  const res = await api<{ device_id: string; items: number; merged: number }>("/backup/restore", {
-    method: "POST",
-    body: { code },
-  });
-  await setDeviceId(res.device_id);
-  await writeList(CACHE_KEY, []);
-  return res;
+export async function restoreBackup(code: string): Promise<{ device_id: string; items: number; merged: number }> {
+  const parsed = JSON.parse(code);
+  if (!Array.isArray(parsed)) throw new Error("Código de copia no válido");
+  const current = await readItems();
+  const existingIds = new Set(current.map((i) => i.id));
+  const incoming = parsed.filter((i: Item) => i && i.id && !existingIds.has(i.id));
+  const mergedList = [...incoming, ...current];
+  await writeItems(mergedList);
+  return {
+    device_id: "local",
+    items: mergedList.length,
+    merged: incoming.length,
+  };
 }
