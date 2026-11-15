@@ -91,7 +91,6 @@ async function detectModel(apiKey: string): Promise<string> {
 async function candidates(): Promise<string[]> {
   const saved = await storage.getItem(MODEL_KEY, "");
   const s: string = typeof saved === "string" ? saved : "";
-  // A previously working official model goes first; older saved models only as last resort.
   const head = s === SECONDARY ? [SECONDARY, PRIMARY] : [PRIMARY, SECONDARY];
   return [...new Set([...head, s].filter(Boolean))];
 }
@@ -130,7 +129,7 @@ async function call(apiKey: string, content: unknown, json: boolean, models?: st
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`${model}: ${msg}`);
-      if (/HTTP 401/.test(msg)) break; // invalid key: no point trying other models
+      if (/HTTP 401/.test(msg)) break;
     }
   }
   throw new Error(`No se pudo conectar con Groq.\n${errors.join("\n")}`);
@@ -178,7 +177,7 @@ export async function analyzeBarcode(apiKey: string, code: string, type: string)
 export async function analyzeText(apiKey: string, description: string) {
   const { text } = await call(
     apiKey,
-    `${INSTRUCTIONS}\n\nNo hay foto: identifica y tasa el artículo a partir de esta descripción escrita por el comprador: "${description.trim()}". Si no especifica estado, asume "Usado".`,
+    `${INSTRUCTIONS}\n\nNo hay foto ni código de barras: tasa el artículo descrito manualmente por el usuario: "${description.trim()}". Si no especifica el estado en su descripción, asume "Bueno".`,
     true,
   );
   return parse(text);
