@@ -1,0 +1,29 @@
+import { File } from "expo-file-system";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { Platform } from "react-native";
+
+const MAX_BYTES = 300 * 1024;
+const STEPS: [number, number][] = [
+  [1000, 0.6],
+  [800, 0.5],
+  [640, 0.45],
+  [480, 0.4],
+];
+
+// Compress the in-memory photo to a JPEG ≤ 300KB. Returns raw base64 (no data: prefix).
+export async function compressPhoto(uri: string): Promise<string> {
+  for (const [width, compress] of STEPS) {
+    const ctx = ImageManipulator.manipulate(uri);
+    ctx.resize({ width });
+    const ref = await ctx.renderAsync();
+    const out = await ref.saveAsync({ compress, format: SaveFormat.JPEG, base64: true });
+    if (Platform.OS !== "web" && out.uri.startsWith("file:")) {
+      try {
+        new File(out.uri).delete();
+      } catch {}
+    }
+    const b64 = (out.base64 ?? (out.uri.startsWith("data:") ? out.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
+    if (b64 && b64.length * 0.75 <= MAX_BYTES) return b64;
+  }
+  throw new Error("No se pudo comprimir la foto");
+}
