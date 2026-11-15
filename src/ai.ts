@@ -1,7 +1,7 @@
 // Direct calls from the client (browser/phone) to the Groq API (OpenAI-compatible) with the user's own key.
 import { storage } from "@/src/utils/storage";
 
-const BASE = "https://api.groq.com/openai/v1";
+const BASE = "https://groq.com";
 const MODEL_KEY = "groq_model";
 const PRIMARY = "qwen/qwen3.8-27b";
 const SECONDARY = "meta-models/muse-spark-open";
@@ -170,6 +170,15 @@ export async function analyzeBarcode(apiKey: string, code: string, type: string)
   const { text } = await call(
     apiKey,
     `${INSTRUCTIONS}\n\nNo hay foto: identifica el producto a partir de este código de barras (${type}): ${code}. Asume estado "Usado - Bueno".`,
+    true,
+  );
+  return parse(text);
+}
+
+export async function analyzeText(apiKey: string, description: string) {
+  const { text } = await call(
+    apiKey,
+    `${INSTRUCTIONS}\n\nNo hay foto: identifica y tasa el artículo a partir de esta descripción escrita por el comprador: "${description.trim()}". Si no especifica estado, asume "Usado".`,
     true,
   );
   return parse(text);
