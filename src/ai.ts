@@ -164,7 +164,10 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
     TIMEOUT_MS
   );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
-  const text: string | undefined = parseJson(raw)?.choices?.[0]?.message?.content;
+  const text: string | undefine
+    if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
+  const choices = parseJson(raw)?.choices;
+  const text: string | undefined = Array.isArray(choices) ? choices.at(0)?.message?.content : undefined;
   if (!text) throw new Error("respuesta vacía de Groq");
   return text;
 }
@@ -210,7 +213,7 @@ function parse(text: string): Analysis {
 const toDataUrl = (b64: string, mime = "image/jpeg") =>
   b64.startsWith("data:") ? b64 : `data:${mime};base64,${b64}`;
 
-export async function testAiKey(apiKey: string): Promise<string> {
+export async function testConnection(apiKey: string): Promise<string> {
   const model = await detectModel(apiKey);
   const res = await call(apiKey, "Responde solo OK", false, [model]);
   return res.model;
@@ -248,18 +251,13 @@ export async function analyzeText(apiKey: string, description: string): Promise<
 
 const normRange = (arr: unknown): [number, number] => {
   if (Array.isArray(arr) && arr.length >= 2) {
-    const a = Math.max(0, Number(arr[0]) || 0);
-    const b = Math.max(a, Number(arr[1]) || 0);
+    const a = Math.max(0, Number(arr.at(0)) || 0);
+    const b = Math.max(a, Number(arr.at(1)) || 0);
     return [a, b];
   }
   return;
 };
 
-export async function analyzeCoin(
-  apiKey: string,
-  photos: { anverso: string; reverso: string; canto: string }
-): Promise<CoinAnalysis> {
-  const { text } = await call(
     apiKey,
     [
       { type: "text", text: COIN_INSTRUCTIONS },
