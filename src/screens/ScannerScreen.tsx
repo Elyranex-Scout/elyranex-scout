@@ -2,7 +2,7 @@ import { Icon } from "@/src/components/Icon";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { File } from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Keyboard, Platform, Pressable, Text, TextInput, Vibration, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +15,7 @@ import { ResultView } from "@/src/components/scanner/ResultView";
 import { analyzeBarcode, analyzeCard, analyzeCoin, analyzePhoto, analyzeStamp, analyzeText, type Analysis } from "@/src/ai";
 import { createItem, newClientId, type CollectiblePhotos, type CollectionDest, type Origin } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
-import { compressPhoto, cropCollectibleHD } from "@/src/photo";
+import { compressPhoto, cropCollectibleHD, straightenPhoto } from "@/src/photo";
 import { DEFAULT_MIN_PROFIT, loadAiKey, loadMinProfit } from "@/src/settings";
 import { makeStyles, useTheme } from "@/src/theme";
 import { computeVerdict, type Verdict } from "@/src/verdict";
@@ -24,11 +24,17 @@ import { useVertical } from "@/src/vertical";
 type Mode = "photo" | "barcode" | "manual";
 type CollectibleKind = "moneda" | "sello" | "carta" | "manual";
 type Phase = "camera" | "analyzing" | "result" | "error";
+type FrameQuality = { ready: boolean; hint: string };
 
 const BARCODE_TYPES = ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] as const;
 const ZOOM_LEVELS = [0, 0.2, 0.35, 0.55] as const;
 const ZOOM_LABELS = ["1x", "1,2x", "1,5x", "2x"] as const;
 
+const REF_POINTS = [
+  { x: "26%", y: "28%" }, { x: "52%", y: "20%" }, { x: "76%", y: "32%" },
+  { x: "22%", y: "55%" }, { x: "50%", y: "50%" }, { x: "78%", y: "58%" },
+  { x: "30%", y: "78%" }, { x: "66%", y: "76%" },
+];
 export default function ScannerScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -60,6 +66,8 @@ export default function ScannerScreen() {
   const [stampHorizontal, setStampHorizontal] = useState(false);
   const [focusPulse, setFocusPulse] = useState(false);
   const [afOn, setAfOn] = useState(true);
+  const [frameQuality, setFrameQuality] = useState<FrameQuality>({ ready: false, hint: "Coloca la pieza dentro del aro" });
+  const [scanStep, setScanStep] = useState(0);
 
   const [errorMsg, setErrorMsg] = useState("");
   const [needsKey, setNeedsKey] = useState(false);
@@ -82,7 +90,91 @@ export default function ScannerScreen() {
   const asking = askingText ? Math.min(99999, parseFloat(askingText.replace(",", ".")) || 0) : null;
   const isCollectible = vertical === "coleccionismo";
   const isManual = isCollectible ? cKind === "manual" : mode === "manual";
+  useEffect(() => {
+    if (phase !== "analyzing") return;
+    const t = setInterval(() => setScanStep((s) => (s + 1) % REF_POINTS.length), 260);
+    return () => clearInterval(t);
+  }, [phase]);
 
+  useEffect(() => {
+    if (!isCollectible || isManual || phase !== "camera" || !focused) return;
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      setFrameQuality({ ready: true, hint: "Centrada y lista para capturar" });
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 96;
+    canvas.height = 96;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    const timer = setInterval(() => {
+      const video = document.querySelector("video") as HTMLVideoElement | null;
+      if (!video || video.readyState < 2 || !ctx) return;
+
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 640;
+      const side = Math.round(Math.min(vw, vh) * 0.56);
+      const sx = Math.max(0, Math.round((vw - side) / 2));
+      const sy = Math.max(0, Math.round((vh - side) / 2));
+
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, 96, 96);
+      const img = ctx.getImageData(0, 0, 96, 96).data;
+
+      let centerSharpness = 0;
+      let centerCount = 0;
+      let centerLuma = 0;
+      let borderLuma = 0;
+      let borderCount = 0;
+
+      for (let y = 2; y < 94; y += 2) {
+        for (let x = 2; x < 94; x += 2) {
+          const i = (y * 96 + x) * 4;
+          const luma = 0.299 * img[i] + 0.587 * img[i + 1] + 0.114 * img[i + 2];
+          const dx = x - 48;
+          const dy = y - 48;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 30) {
+            const iRight = (y * 96 + (x + 2)) * 4;
+            const iDown = ((y + 2) * 96 + x) * 4;
+            const lR = 0.299 * img[iRight] + 0.587 * img[iRight + 1] + 0.114 * img[iRight + 2];
+            const lD = 0.299 * img[iDown] + 0.587 * img[iDown + 1] + 0.114 * img[iDown + 2];
+            centerSharpness += Math.abs(luma - lR) + Math.abs(luma - lD);
+            centerLuma += luma;
+            centerCount++;
+          } else if (dist >= 38 && dist <= 47) {
+            borderLuma += luma;
+            borderCount++;
+          }
+        }
+      }
+
+      const avgSharp = centerCount ? centerSharpness / centerCount : 0;
+      const avgCenter = centerCount ? centerLuma / centerCount : 0;
+      const avgBorder = borderCount ? borderLuma / borderCount : 0;
+      const contrast = Math.abs(avgCenter - avgBorder);
+
+      if (cKind === "moneda" && cPhotos.length === 2) {
+        const edgeOk = avgSharp >= 9;
+        setFrameQuality({
+          ready: edgeOk,
+          hint: edgeOk ? "¡Canto enfocado! Pulsa para analizar" : "Acerca el canto y toca para enfocar",
+        });
+        return;
+      }
+
+      if (contrast < 10 && avgSharp < 11) {
+        setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
+      } else if (avgSharp < 10.5) {
+        setFrameQuality({ ready: false, hint: "Desenfocada · Mueve un poco o toca el centro" });
+      } else {
+        setFrameQuality({ ready: true, hint: "¡Centrada y nítida! Lista para capturar" });
+      }
+    }, 300);
+
+    return () => clearInterval(timer);
+  }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length]);
   const triggerRefocus = () => {
     if (Platform.OS !== "web") Vibration.vibrate(25);
     setFocusPulse(true);
@@ -107,6 +199,7 @@ export default function ScannerScreen() {
     setToast(msg);
     setTimeout(() => setToast(""), 2200);
   };
+
   const runReventa = async (job: (key: string) => Promise<Analysis>) => {
     const key = await loadAiKey();
     if (!key) {
@@ -128,7 +221,10 @@ export default function ScannerScreen() {
     }
   };
 
-  const runCollectible = async (job: (key: string) => Promise<CollectibleAnalysis>) => {
+  const runCollectible = async (
+    photosToAnalyze: string[],
+    job: (key: string) => Promise<CollectibleAnalysis>
+  ) => {
     const key = await loadAiKey();
     if (!key) {
       setNeedsKey(true);
@@ -140,6 +236,12 @@ export default function ScannerScreen() {
     setPhase("analyzing");
     try {
       const res = await job(key);
+      if (res.tipo_pieza === "moneda" && photosToAnalyze.length >= 2) {
+        const straightAnv = await straightenPhoto(photosToAnalyze.at(0)!, res.rotacion_anverso ?? 0);
+        const straightRev = await straightenPhoto(photosToAnalyze.at(1)!, res.rotacion_reverso ?? 0);
+        const updated = [straightAnv, straightRev, ...(photosToAnalyze.at(2) ? [photosToAnalyze.at(2)!] : [])];
+        setCPhotos(updated);
+      }
       setCResult(res);
       setPhase("result");
     } catch (e) {
@@ -147,10 +249,9 @@ export default function ScannerScreen() {
       setPhase("error");
     }
   };
-
   const capturePhoto = async (cropMode?: "square" | "edge"): Promise<string> => {
     if (!cameraRef.current) throw new Error("Cámara no disponible.");
-    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.75, shutterSound: false });
+    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.78, shutterSound: false });
     const base64 = (pic.base64 ?? (pic.uri.startsWith("data:") ? pic.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
     if (Platform.OS !== "web" && pic.uri.startsWith("file:")) {
       try {
@@ -172,6 +273,11 @@ export default function ScannerScreen() {
 
   const takePhoto = async () => {
     if (busy.current || !cameraRef.current) return;
+    if (isCollectible && !frameQuality.ready) {
+      triggerRefocus();
+      showToast(frameQuality.hint);
+      return;
+    }
     busy.current = true;
     try {
       if (!isCollectible) {
@@ -187,13 +293,13 @@ export default function ScannerScreen() {
       setCPhotos(nextList);
 
       if (cKind === "sello") {
-        await runCollectible((key) => analyzeStamp(key, croppedUri));
+        await runCollectible(nextList, (key) => analyzeStamp(key, croppedUri));
       } else if (cKind === "moneda" && nextList.length >= 3) {
-        await runCollectible((key) =>
+        await runCollectible(nextList, (key) =>
           analyzeCoin(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)!, canto: nextList.at(2)! })
         );
       } else if (cKind === "carta" && nextList.length >= 2) {
-        await runCollectible((key) =>
+        await runCollectible(nextList, (key) =>
           analyzeCard(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)! })
         );
       } else {
@@ -208,7 +314,7 @@ export default function ScannerScreen() {
   const analyzeCardOnePhoto = async () => {
     if (busy.current || cPhotos.length < 1) return;
     busy.current = true;
-    await runCollectible((key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
+    await runCollectible(cPhotos, (key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
   };
 
   const onBarcode = (r: BarcodeScanningResult) => {
@@ -304,7 +410,6 @@ export default function ScannerScreen() {
           : cResult.tipo_pieza === "sello"
           ? `Cat. ${cResult.numero_catalogo} · Facial ${cResult.valor_facial}`
           : `${cResult.expansion_set} · ${cResult.rareza}`;
-
       await createItem({
         client_id: newClientId(),
         vertical: "coleccionismo",
@@ -362,6 +467,7 @@ export default function ScannerScreen() {
       setSaving(false);
     }
   };
+
   if (phase === "result" && isCollectible && cResult && cPhotos.length > 0) {
     return (
       <View style={styles.root}>
@@ -396,7 +502,6 @@ export default function ScannerScreen() {
       </View>
     );
   }
-
   const guideHeadline =
     cKind === "moneda"
       ? cPhotos.length === 0
@@ -410,8 +515,6 @@ export default function ScannerScreen() {
       ? "1/2 · Encuadra el ANVERSO de la carta"
       : "2/2 · Encuadra el REVERSO (o analiza ya)";
 
-  const guideSubline = "Acércala hasta llenar el círculo · Toca en el centro para enfocar";
-
   const shutterLabel = !isCollectible
     ? "ANALIZAR"
     : cKind === "sello"
@@ -420,6 +523,8 @@ export default function ScannerScreen() {
     ? `FOTO ${cPhotos.length + 1}/3`
     : `FOTO ${cPhotos.length + 1}/2`;
 
+  const ringColor = !isCollectible || frameQuality.ready ? "#22C55E" : "#EF4444";
+  const shutterLocked = isCollectible && !isManual && !frameQuality.ready;
   const granted = permission?.granted;
 
   return (
@@ -467,12 +572,13 @@ export default function ScannerScreen() {
         )}
 
         {isCollectible && !isManual ? (
-          <View style={styles.coachBanner}>
+          <View style={[styles.coachBanner, { borderColor: ringColor }]}>
             <Text style={styles.coachTitle}>{guideHeadline}</Text>
-            <Text style={styles.coachSub}>{guideSubline}</Text>
+            <Text style={[styles.coachSub, { color: ringColor }]}>{frameQuality.hint}</Text>
           </View>
         ) : null}
       </View>
+
       {!isManual && !permission ? (
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
       ) : !isManual && !granted ? (
@@ -496,17 +602,17 @@ export default function ScannerScreen() {
 
               <Pressable onPress={triggerRefocus} style={styles.finder}>
                 {isCollectible && cKind === "moneda" && cPhotos.length < 2 ? (
-                  <View style={[styles.coinCircle, focusPulse && styles.focusFlash]}>
-                    <View style={styles.coinInnerRing} />
-                    <View style={styles.crossH} />
-                    <View style={styles.crossV} />
+                  <View style={[styles.coinCircle, { borderColor: ringColor }, focusPulse && styles.focusFlash]}>
+                    <View style={[styles.coinInnerRing, { borderColor: ringColor }]} />
+                    <View style={[styles.crossH, { backgroundColor: ringColor }]} />
+                    <View style={[styles.crossV, { backgroundColor: ringColor }]} />
                   </View>
                 ) : isCollectible && cKind === "moneda" && cPhotos.length === 2 ? (
-                  <View style={[styles.coinEdgeGuide, focusPulse && styles.focusFlash]} />
+                  <View style={[styles.coinEdgeGuide, { borderColor: ringColor }, focusPulse && styles.focusFlash]} />
                 ) : isCollectible && cKind === "sello" ? (
-                  <View style={[styles.stampGuide, stampHorizontal && styles.stampGuideHoriz, focusPulse && styles.focusFlash]} />
+                  <View style={[styles.stampGuide, { borderColor: ringColor }, stampHorizontal && styles.stampGuideHoriz, focusPulse && styles.focusFlash]} />
                 ) : isCollectible && cKind === "carta" ? (
-                  <View style={[styles.cardGuide, focusPulse && styles.focusFlash]} />
+                  <View style={[styles.cardGuide, { borderColor: ringColor }, focusPulse && styles.focusFlash]} />
                 ) : (
                   <View style={[styles.frame, !isCollectible && mode === "barcode" && styles.frameBarcode]}>
                     <View style={[styles.corner, styles.tl]} />
@@ -604,7 +710,7 @@ export default function ScannerScreen() {
                   <Text style={styles.shutterText} numberOfLines={1}>ANALIZAR</Text>
                 </Pressable>
               ) : isCollectible || mode === "photo" ? (
-                <Pressable onPress={takePhoto} style={({ pressed }) => [styles.shutter, pressed && styles.pressed]}>
+                <Pressable onPress={takePhoto} style={({ pressed }) => [styles.shutter, shutterLocked && styles.shutterLocked, pressed && !shutterLocked && styles.pressed]}>
                   <Icon name="camera-iris" size={24} color={colors.onBrandPrimary} />
                   <Text style={styles.shutterText} numberOfLines={1}>{shutterLabel}</Text>
                 </Pressable>
@@ -621,9 +727,29 @@ export default function ScannerScreen() {
             <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
               {phase === "analyzing" ? (
                 <>
-                  <ActivityIndicator color={colors.brandPrimary} size="large" />
-                  <Text style={styles.overlayTitle}>Analizando con Groq…</Text>
-                  <Text style={styles.overlayText}>{isCollectible ? "Analizando los 5 puntos de referencia" : "Identificando y tasando el artículo"}</Text>
+                  {isCollectible && cPhotos.length > 0 ? (
+                    <View style={styles.pointsRow}>
+                      {cPhotos.slice(0, 2).map((uri, idx) => (
+                        <View key={idx} style={styles.pointCard}>
+                          <Image source={{ uri }} style={styles.pointImg} />
+                          {REF_POINTS.map((pt, pIdx) => (
+                            <View
+                              key={pIdx}
+                              style={[
+                                styles.refDot,
+                                { left: pt.x as any, top: pt.y as any },
+                                pIdx === scanStep && styles.refDotActive,
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <ActivityIndicator color={colors.brandPrimary} size="large" />
+                  )}
+                  <Text style={styles.overlayTitle}>Analizando rasgos…</Text>
+                  <Text style={styles.overlayText}>{isCollectible ? "Verificando leyenda, ceca, relieves y estado" : "Identificando y tasando el artículo"}</Text>
                 </>
               ) : (
                 <>
@@ -658,23 +784,23 @@ const useStyles = makeStyles((c) => ({
   modeBtnActive: { backgroundColor: c.brandPrimary },
   modeLabel: { color: c.onSurface, fontSize: 11, fontWeight: "800" },
   modeLabelActive: { color: c.onBrandPrimary, fontWeight: "900" },
-  coachBanner: { backgroundColor: c.surfaceSecondary, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: c.brandPrimary, alignItems: "center" },
-  coachTitle: { color: c.brandPrimary, fontSize: 13, fontWeight: "900", textAlign: "center" },
-  coachSub: { color: c.onSurfaceTertiary, fontSize: 11, fontWeight: "700", textAlign: "center" },
+  coachBanner: { backgroundColor: c.surfaceSecondary, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1.5, alignItems: "center" },
+  coachTitle: { color: c.onSurface, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  coachSub: { fontSize: 11, fontWeight: "800", textAlign: "center" },
   cameraWrap: { flex: 1, position: "relative" },
   camera: { flex: 1 },
   finder: { position: "absolute", top: 12, left: 20, right: 20, bottom: 76, alignItems: "center", justifyContent: "center" },
   frame: { width: "100%", height: "82%", position: "relative" },
   frameBarcode: { height: "42%" },
-  coinCircle: { width: 205, height: 205, borderRadius: 103, borderWidth: 3, borderColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
-  coinInnerRing: { width: 178, height: 178, borderRadius: 89, borderWidth: 1, borderColor: "rgba(255,255,255,0.5)", borderStyle: "dashed" },
-  crossH: { position: "absolute", width: 22, height: 2, backgroundColor: c.brandPrimary },
-  crossV: { position: "absolute", width: 2, height: 22, backgroundColor: c.brandPrimary },
+  coinCircle: { width: 205, height: 205, borderRadius: 103, borderWidth: 3.5, alignItems: "center", justifyContent: "center" },
+  coinInnerRing: { width: 178, height: 178, borderRadius: 89, borderWidth: 1, borderStyle: "dashed", opacity: 0.75 },
+  crossH: { position: "absolute", width: 22, height: 2 },
+  crossV: { position: "absolute", width: 2, height: 22 },
   focusFlash: { borderColor: "#FFFFFF", transform: [{ scale: 0.96 }] },
-  coinEdgeGuide: { width: "86%", height: 54, borderRadius: 12, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.2)" },
-  stampGuide: { width: 175, height: 220, borderRadius: 8, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.25)" },
+  coinEdgeGuide: { width: "86%", height: 54, borderRadius: 12, borderWidth: 3.5, backgroundColor: "rgba(0,0,0,0.2)" },
+  stampGuide: { width: 175, height: 220, borderRadius: 8, borderWidth: 3.5, backgroundColor: "rgba(0,0,0,0.25)" },
   stampGuideHoriz: { width: 230, height: 170 },
-  cardGuide: { width: 195, height: 270, borderRadius: 14, borderWidth: 3, borderColor: c.brandPrimary },
+  cardGuide: { width: 195, height: 270, borderRadius: 14, borderWidth: 3.5 },
   macroTools: { position: "absolute", right: 10, top: 12, gap: 8 },
   toolBtn: { height: 38, paddingHorizontal: 9, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   toolBtnActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
@@ -714,11 +840,17 @@ const useStyles = makeStyles((c) => ({
   priceEuro: { color: c.onSurfaceTertiary, fontSize: 20, fontWeight: "900" },
   shutter: { flex: 1.15, height: 56, borderRadius: 12, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 8 },
   shutterDisabled: { opacity: 0.45 },
+  shutterLocked: { backgroundColor: "#EF4444", opacity: 0.65 },
   shutterText: { color: c.onBrandPrimary, fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
   scanningHint: { flex: 1.15, height: 56, borderRadius: 12, borderWidth: 2, borderColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   scanningText: { color: c.brandPrimary, fontSize: 15, fontWeight: "900", flexShrink: 1 },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.surface, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
+  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.surface, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
+  pointsRow: { flexDirection: "row", gap: 14, marginBottom: 8 },
+  pointCard: { width: 136, height: 136, borderRadius: 68, overflow: "hidden", borderWidth: 2, borderColor: c.brandPrimary, position: "relative" },
+  pointImg: { width: 136, height: 136 },
+  refDot: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.75)", borderWidth: 1, borderColor: c.brandPrimary },
+  refDotActive: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#22C55E", borderWidth: 2, borderColor: "#FFF" },
   overlayTitle: { color: c.onSurface, fontSize: 24, fontWeight: "900", textAlign: "center" },
   overlayText: { color: c.onSurfaceTertiary, fontSize: 16, textAlign: "center", lineHeight: 22 },
   overlayBtn: { alignSelf: "stretch", height: 64, borderRadius: 12, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center", marginTop: 8 },
