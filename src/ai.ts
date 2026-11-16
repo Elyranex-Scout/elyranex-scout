@@ -46,8 +46,11 @@ export type CoinAnalysis = {
     MBC: [number, number];
     BC: [number, number];
   };
+    rotacion_anverso?: number;
+  rotacion_reverso?: number;
   explicacion: string;
 };
+
 
 export type StampAnalysis = {
   tipo_pieza: "sello";
@@ -93,7 +96,7 @@ const INSTRUCTIONS = [
   "PASO 1 · LECTURA OBLIGATORIA DE TEXTO Y LOGOTIPOS: Lee el texto, logotipo o marca exacta impresa en el objeto. La marca es la que está ESCRITA, no la que sugiere el diseño. En relojes lee la esfera: si pone Poedagar, Pagani Design, Curren, Naviforce, Benyar, Casio, ese es el reloj; NUNCA lo tases como Rolex, Omega o similar solo por parecerse. Si no se lee ninguna marca, indica Sin marca visible.",
   "PASO 2 · PRUDENCIA EN LUJO: Si un reloj, bolso, gafas, joya o prenda PARECE de lujo pero es un homenaje/réplica o no hay pruebas claras de autenticidad, tásalo entre 10 y 20 euros con demanda Baja.",
   "PASO 3 · TASACIÓN GENERAL: Clasifícalo en Coleccionismo, Electrónica, Ropa, Hogar, Juguetes u Otros. Estima su Precio Nuevo (€), su Valor Estimado de Reventa (VER) real en Wallapop, Vinted o eBay (€) según su estado, y su demanda (Alta, Media o Baja).",
-  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"nombre": string, "marca": string, "modelo_edicion": string, "estado": "Nuevo"|"Muy bueno"|"Bueno"|"Usado"|"Dañado", "categoria": "Coleccionismo"|"Electrónica"|"Ropa"|"Hogar"|"Juguetes"|"Otros", "precio_nuevo": número, "ver": número, "demanda": "Alta"|"Media"|"Baja", "explicacion": "2 o 3 frases cortas en español (máx. 300 caracteres)"}',
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "rotacion_anverso": número de grados (-180 a 180) para poner recta la foto 1, "rotacion_reverso": número de grados (-180 a 180) para poner recta la foto 2, "explicacion": "2 o 3 frases en español detallando leyenda leída, país, año, ceca, canto y estado"}',
 ].join("\n");
 
 const COIN_INSTRUCTIONS = [
@@ -313,15 +316,18 @@ export async function analyzeCoin(
       grosor_mm: String(raw.especificaciones?.grosor_mm ?? "-"),
     },
     grado_estimado: grades.includes(raw.grado_estimado) ? raw.grado_estimado : "MBC",
-    precios_por_grado: {
+        precios_por_grado: {
       SC: normRange(raw.precios_por_grado?.SC),
       EBC: normRange(raw.precios_por_grado?.EBC),
       MBC: normRange(raw.precios_por_grado?.MBC),
       BC: normRange(raw.precios_por_grado?.BC),
     },
+    rotacion_anverso: Number(raw.rotacion_anverso) || 0,
+    rotacion_reverso: Number(raw.rotacion_reverso) || 0,
     explicacion: String(raw.explicacion ?? ""),
   };
 }
+
 
 const CARD_INSTRUCTIONS = [
   "Eres un experto tasador de cartas coleccionables (Pokémon TCG, Magic, Yu-Gi-Oh!, deportes y cromos) y detector de falsificaciones. Puedes recibir 1 foto (solo Anverso) o 2 fotos (Anverso y Reverso).",
