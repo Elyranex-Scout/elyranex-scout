@@ -98,6 +98,7 @@ const STAMP_INSTRUCTIONS = [
   "- Da horquillas realistas y PRUDENTES de valor en euros [min, max] para cada estado.",
   'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "sello", "pais": string, "serie_tematica": string, "anio": string, "valor_facial": string, "color_impresion": string, "numero_catalogo": string, "rareza": "Muy común"|"Común"|"Escaso"|"Raro"|"Muy raro", "evaluacion_dentado": string, "estado_estimado": "MNH (**)"|"MH (*)"|"Sin goma"|"Usado (O)", "precios_por_estado": {"MNH (**)": [number, number], "MH (*)": [number, number], "Sin goma": [number, number], "Usado (O)": [number, number]}, "explicacion": "2 o 3 frases en español detallando emisión, centrado, matasellos y reverso"}',
 ].join("\n");
+
 async function timedFetch(url: string, init: RequestInit, ms: number) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -146,7 +147,6 @@ async function candidates(): Promise<string[]> {
   const head = s === SECONDARY ? [SECONDARY, PRIMARY] : [PRIMARY, SECONDARY];
   return [...new Set([...head, s].filter(Boolean))];
 }
-
 async function chat(model: string, apiKey: string, content: unknown, json: boolean): Promise<string> {
   const { status, raw } = await timedFetch(
     `${BASE}/chat/completions`,
@@ -164,8 +164,6 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
     TIMEOUT_MS
   );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
-  const text: string | undefine
-    if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
   const choices = parseJson(raw)?.choices;
   const text: string | undefined = Array.isArray(choices) ? choices.at(0)?.message?.content : undefined;
   if (!text) throw new Error("respuesta vacía de Groq");
@@ -258,6 +256,11 @@ const normRange = (arr: unknown): [number, number] => {
   return;
 };
 
+export async function analyzeCoin(
+  apiKey: string,
+  photos: { anverso: string; reverso: string; canto: string }
+): Promise<CoinAnalysis> {
+  const { text } = await call(
     apiKey,
     [
       { type: "text", text: COIN_INSTRUCTIONS },
