@@ -1,7 +1,7 @@
 // Direct calls from the client (browser/phone) to the Groq API (OpenAI-compatible) with the user's own key.
 import { storage } from "@/src/utils/storage";
 
-const BASE = "/api/groq";
+const BASE = "https://groq.com";
 const MODEL_KEY = "groq_model_v2";
 const PRIMARY = "meta-llama/llama-4-scout-17b-16e-instruct";
 const SECONDARY = "meta-llama/llama-4-maverick-17b-128e-instruct";
