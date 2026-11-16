@@ -13,7 +13,8 @@ export async function onRequest(context) {
   }
 
   const subPath = Array.isArray(params.path) ? params.path.join("/") : (params.path || "");
-  const targetUrl = `https://groq.com{subPath}`;
+  
+  const targetUrl = "https://groq.com" + subPath;
 
   const headers = new Headers();
   const auth = request.headers.get("Authorization");
