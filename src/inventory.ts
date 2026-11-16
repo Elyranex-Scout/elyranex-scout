@@ -222,6 +222,10 @@ export async function sellItem(
   if (!updated) throw new Error("Artículo no encontrado");
   return updated;
 }
+export async function deleteItem(id: string): Promise<void> {
+  const items = await readItems();
+  await writeItems(items.filter((i) => i.id !== id));
+}
 
 export const totalCost = (i: Item) => i.precio_pagado + i.gastos_extra;
 export const netProfit = (i: Item) => (i.precio_venta ?? 0) - (i.comisiones ?? 0) - totalCost(i);
