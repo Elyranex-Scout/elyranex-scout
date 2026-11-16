@@ -153,7 +153,7 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
     `${BASE}/chat/completions`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` }).
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` },
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
