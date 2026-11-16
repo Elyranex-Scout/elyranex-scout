@@ -12,28 +12,35 @@ export async function onRequest(context) {
     });
   }
 
-  const subPath = Array.isArray(params.path) ? params.path.join("/") : (params.path || "");
-  const cleanSubPath = subPath.replace(/^\/+/, "");
-  const targetUrl = `https://groq.com{cleanSubPath}`;
+  try {
+    const rawPath = Array.isArray(params.path) ? params.path.join("/") : (params.path || "");
+    const cleanPath = rawPath.replace(/^\/+/, "");
+    const targetUrl = "https://groq.com" + cleanPath;
 
-  const headers = new Headers();
-  const auth = request.headers.get("Authorization");
-  const contentType = request.headers.get("Content-Type");
-  if (auth) headers.set("Authorization", auth);
-  if (contentType) headers.set("Content-Type", contentType);
+    const headers = new Headers();
+    const auth = request.headers.get("Authorization");
+    const contentType = request.headers.get("Content-Type");
+    if (auth) headers.set("Authorization", auth);
+    if (contentType) headers.set("Content-Type", contentType);
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-  });
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: request.method !== "GET" && request.method !== "HEAD" ? await request.arrayBuffer() : undefined,
+    });
 
-  const respHeaders = new Headers(response.headers);
-  respHeaders.set("Access-Control-Allow-Origin", "*");
+    const respHeaders = new Headers(response.headers);
+    respHeaders.set("Access-Control-Allow-Origin", "*");
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: respHeaders,
-  });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: respHeaders,
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: { message: err.message || "Proxy error" } }), {
+      status: 502,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
 }
