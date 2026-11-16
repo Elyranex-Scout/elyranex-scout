@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getDeviceId, photoUrl } from "@/src/api";
 import { AppHeader } from "@/src/components/AppHeader";
 import { CATEGORIES, type Category } from "@/src/ai";
-import { daysInStock, fetchItems, netProfit, OLD_STOCK_DAYS, totalCost, type CollectionDest, type Item } from "@/src/inventory";
+import { daysInStock, deleteItem, fetchItems, netProfit, OLD_STOCK_DAYS, totalCost, type CollectionDest, type Item } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
 import { makeStyles, useTheme } from "@/src/theme";
 import { euro } from "@/src/verdict";
@@ -377,9 +377,26 @@ export default function InventoryScreen() {
 
                 <Text style={styles.modalExp}>{inspectItem.explicacion}</Text>
 
-                <Pressable onPress={() => setInspectItem(null)} style={styles.closeModalBtn}>
-                  <Text style={styles.closeModalText}>CERRAR FICHA</Text>
-                </Pressable>
+                                <View style={styles.modalBtnRow}>
+                  <Pressable
+                    onPress={async () => {
+                      const idToRemove = inspectItem.id;
+                      setInspectItem(null);
+                      await deleteItem(idToRemove);
+                      load();
+                      setToast("Pieza eliminada del álbum");
+                      setTimeout(() => setToast(""), 2200);
+                    }}
+                    style={styles.deleteModalBtn}
+                  >
+                    <Icon name="delete" size={18} color={colors.onError} />
+                    <Text style={styles.deleteModalText}>ELIMINAR</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setInspectItem(null)} style={styles.closeModalBtn}>
+                    <Text style={styles.closeModalText}>CERRAR</Text>
+                  </Pressable>
+                </View>
+
               </ScrollView>
             ) : null}
           </View>
@@ -460,8 +477,12 @@ const useStyles = makeStyles((c) => ({
   modalSpecs: { backgroundColor: c.surfaceSecondary, borderRadius: 12, padding: 12, gap: 6, borderWidth: 1, borderColor: c.border },
   specLine: { color: c.muted, fontSize: 13, fontWeight: "700" },
   modalExp: { color: c.onSurface, fontSize: 14, lineHeight: 20 },
-  closeModalBtn: { height: 50, borderRadius: 12, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  modalBtnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  deleteModalBtn: { flex: 0.9, height: 50, borderRadius: 12, backgroundColor: c.error, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  deleteModalText: { color: c.onError, fontSize: 14, fontWeight: "900" },
+  closeModalBtn: { flex: 1.1, height: 50, borderRadius: 12, backgroundColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
   closeModalText: { color: c.onBrandPrimary, fontSize: 15, fontWeight: "900" },
+
   toast: { position: "absolute", left: 16, right: 16, padding: 16, borderRadius: 12, backgroundColor: c.warning },
   toastText: { color: c.onWarning, fontSize: 15, fontWeight: "900" },
 }));
