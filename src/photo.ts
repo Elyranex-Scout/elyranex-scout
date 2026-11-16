@@ -62,7 +62,7 @@ export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "
 
     const ctx = ImageManipulator.manipulate(uri);
     ctx.crop({ originX, originY, width: cropW, height: cropH });
-    ctx.resize({ width: 960 });
+    ctx.resize({ width: 640 });
     const ref = await ctx.renderAsync();
     const out = await ref.saveAsync({ compress: 0.9, format: SaveFormat.JPEG, base64: true });
     if (Platform.OS !== "web" && out.uri.startsWith("file:")) {
