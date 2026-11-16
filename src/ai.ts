@@ -88,26 +88,6 @@ export type CardAnalysis = {
   explicacion: string;
 };
 
-
-  tipo_pieza: "sello";
-  pais: string;
-  serie_tematica: string;
-  anio: string;
-  valor_facial: string;
-  color_impresion: string;
-  numero_catalogo: string;
-  rareza: "Muy común" | "Común" | "Escaso" | "Raro" | "Muy raro";
-  evaluacion_dentado: string;
-  estado_estimado: "MNH (**)" | "MH (*)" | "Sin goma" | "Usado (O)";
-  precios_por_estado: {
-    "MNH (**)": [number, number];
-    "MH (*)": [number, number];
-    "Sin goma": [number, number];
-    "Usado (O)": [number, number];
-  };
-  explicacion: string;
-};
-
 const INSTRUCTIONS = [
   "Eres un tasador experto y PRUDENTE para revendedores de mercadillos, Vinted y Wallapop en España. Tu prioridad es no hacer perder dinero al comprador: ante la duda, tasa a la baja.",
   "PASO 1 · LECTURA OBLIGATORIA DE TEXTO Y LOGOTIPOS: Lee el texto, logotipo o marca exacta impresa en el objeto. La marca es la que está ESCRITA, no la que sugiere el diseño. En relojes lee la esfera: si pone Poedagar, Pagani Design, Curren, Naviforce, Benyar, Casio, ese es el reloj; NUNCA lo tases como Rolex, Omega o similar solo por parecerse. Si no se lee ninguna marca, indica Sin marca visible.",
