@@ -322,18 +322,23 @@ export async function analyzeCoin(
   };
 }
 
-export async function analyzeStamp(
-  apiKey: string,
-  photos: { anverso: string; reverso: string }
-): Promise<StampAnalysis> {
+const CARD_INSTRUCTIONS = [
+  "Eres un experto tasador de cartas coleccionables (Pokémon TCG, Magic, Yu-Gi-Oh!, deportes y cromos) y detector de falsificaciones. Puedes recibir 1 foto (solo Anverso) o 2 fotos (Anverso y Reverso).",
+  "INSTRUCCIONES:",
+  "- Lee exactamente el nombre de la carta, la expansión/colección (símbolo o código inferior), el número de carta (ej. 025/198), el idioma y el acabado (Normal, Holo, Reverse Holo, EX, GX, V, VMAX, Illustration Rare, Full Art).",
+  "- Comprueba indicios de autenticidad (tipografía correcta, textura en cartas Full Art/VMAX, brillo diagonal en Pokémon, tono azul y nitidez del reverso si se aporta la 2ª foto). Si parece falsa o proxy, indícalo claramente.",
+  "- Evalúa el centrado, esquinas y blanqueamiento (whitening) en bordes para estimar su estado: Near Mint (NM), Excellent (EX), Good (GD) o Played (PL).",
+  "- Da horquillas realistas y PRUDENTES de precio de mercado en euros [min, max] para cada estado.",
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "carta", "juego_o_coleccion": string, "nombre_carta": string, "expansion_set": string, "numero_carta": string, "idioma": string, "rareza": string, "autenticidad": "Original aparente"|"Posible réplica / Proxy"|"No determinable", "estado_estimado": "Near Mint (NM)"|"Excellent (EX)"|"Good (GD)"|"Played (PL)", "precios_por_estado": {"Near Mint (NM)": [number, number], "Excellent (EX)": [number, number], "Good (GD)": [number, number], "Played (PL)": [number, number]}, "explicacion": "2 o 3 frases en español detallando edición, rareza, centrado/bordes y autenticidad"}',
+].join("\n");
+
+export async function analyzeStamp(apiKey: string, photoBase64: string): Promise<StampAnalysis> {
   const { text } = await call(
     apiKey,
     [
       { type: "text", text: STAMP_INSTRUCTIONS },
-      { type: "text", text: "Imagen 1 — ANVERSO (Diseño y dentado):" },
-      { type: "image_url", image_url: { url: toDataUrl(photos.anverso) } },
-      { type: "text", text: "Imagen 2 — REVERSO (Goma y charnela):" },
-      { type: "image_url", image_url: { url: toDataUrl(photos.reverso) } },
+      { type: "text", text: "Fotografía del ANVERSO del sello postal (diseño, dentado y matasellos):" },
+      { type: "image_url", image_url: { url: toDataUrl(photoBase64) } },
     ],
     true
   );
@@ -357,6 +362,45 @@ export async function analyzeStamp(
       "MH (*)": normRange(raw.precios_por_estado?.["MH (*)"]),
       "Sin goma": normRange(raw.precios_por_estado?.["Sin goma"]),
       "Usado (O)": normRange(raw.precios_por_estado?.["Usado (O)"]),
+    },
+    explicacion: String(raw.explicacion ?? ""),
+  };
+}
+
+export async function analyzeCard(
+  apiKey: string,
+  photos: { anverso: string; reverso?: string | null }
+): Promise<CardAnalysis> {
+  const content: unknown[] = [
+    { type: "text", text: CARD_INSTRUCTIONS },
+    { type: "text", text: "Imagen 1 — ANVERSO de la carta/cromo:" },
+    { type: "image_url", image_url: { url: toDataUrl(photos.anverso) } },
+  ];
+  if (photos.reverso) {
+    content.push(
+      { type: "text", text: "Imagen 2 — REVERSO de la carta/cromo (bordes y estado del dorso):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.reverso) } }
+    );
+  }
+  const { text } = await call(apiKey, content, true);
+  const raw = JSON.parse(cleanJsonText(text)) as CardAnalysis;
+  const states = ["Near Mint (NM)", "Excellent (EX)", "Good (GD)", "Played (PL)"] as const;
+  const auths = ["Original aparente", "Posible réplica / Proxy", "No determinable"] as const;
+  return {
+    tipo_pieza: "carta",
+    juego_o_coleccion: String(raw.juego_o_coleccion ?? "Pokémon / Cromo"),
+    nombre_carta: String(raw.nombre_carta ?? "Carta coleccionable"),
+    expansion_set: String(raw.expansion_set ?? "-"),
+    numero_carta: String(raw.numero_carta ?? "-"),
+    idioma: String(raw.idioma ?? "-"),
+    rareza: String(raw.rareza ?? "Común"),
+    autenticidad: auths.includes(raw.autenticidad) ? raw.autenticidad : "No determinable",
+    estado_estimado: states.includes(raw.estado_estimado) ? raw.estado_estimado : "Excellent (EX)",
+    precios_por_estado: {
+      "Near Mint (NM)": normRange(raw.precios_por_estado?.["Near Mint (NM)"]),
+      "Excellent (EX)": normRange(raw.precios_por_estado?.["Excellent (EX)"]),
+      "Good (GD)": normRange(raw.precios_por_estado?.["Good (GD)"]),
+      "Played (PL)": normRange(raw.precios_por_estado?.["Played (PL)"]),
     },
     explicacion: String(raw.explicacion ?? ""),
   };
