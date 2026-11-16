@@ -50,6 +50,25 @@ export type CoinAnalysis = {
 };
 
 export type StampAnalysis = {
+  export type CardAnalysis = {
+  tipo_pieza: "carta";
+  juego_o_coleccion: string;
+  nombre_carta: string;
+  expansion_set: string;
+  numero_carta: string;
+  idioma: string;
+  rareza: string;
+  autenticidad: "Original aparente" | "Posible réplica / Proxy" | "No determinable";
+  estado_estimado: "Near Mint (NM)" | "Excellent (EX)" | "Good (GD)" | "Played (PL)";
+  precios_por_estado: {
+    "Near Mint (NM)": [number, number];
+    "Excellent (EX)": [number, number];
+    "Good (GD)": [number, number];
+    "Played (PL)": [number, number];
+  };
+  explicacion: string;
+};
+
   tipo_pieza: "sello";
   pais: string;
   serie_tematica: string;
