@@ -129,7 +129,7 @@ const errorText = (status: number, raw: string) => {
 async function detectModel(apiKey: string): Promise<string> {
   const { status, raw } = await timedFetch(
     `${BASE}/models`,
-    { headers: { Authorization: `Bearer ${apiKey}` } },
+    { headers: { Authorization: `Bearer ${apiKey.trim()}
     LIST_TIMEOUT_MS
   );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
@@ -153,7 +153,7 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
     `${BASE}/chat/completions`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` }).
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
