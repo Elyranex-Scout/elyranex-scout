@@ -105,8 +105,9 @@ async function timedFetch(url: string, init: RequestInit, ms: number) {
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     return { status: res.status, raw: await res.text() };
-  } catch {
-    throw new Error(ctrl.signal.aborted ? `sin respuesta en ${ms / 1000} s (timeout)` : "sin conexión con Groq");
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(ctrl.signal.aborted ? `sin respuesta en ${ms / 1000} s (timeout)` : `sin conexión con Groq (${reason})`);
   } finally {
     clearTimeout(timer);
   }
@@ -253,7 +254,7 @@ const normRange = (arr: unknown): [number, number] => {
     const b = Math.max(a, Number(arr.at(1)) || 0);
     return [a, b];
   }
-  return;
+  return [0, 0];
 };
 
 export async function analyzeCoin(
