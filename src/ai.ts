@@ -50,7 +50,26 @@ export type CoinAnalysis = {
 };
 
 export type StampAnalysis = {
-  export type CardAnalysis = {
+  tipo_pieza: "sello";
+  pais: string;
+  serie_tematica: string;
+  anio: string;
+  valor_facial: string;
+  color_impresion: string;
+  numero_catalogo: string;
+  rareza: "Muy común" | "Común" | "Escaso" | "Raro" | "Muy raro";
+  evaluacion_dentado: string;
+  estado_estimado: "MNH (**)" | "MH (*)" | "Sin goma" | "Usado (O)";
+  precios_por_estado: {
+    "MNH (**)": [number, number];
+    "MH (*)": [number, number];
+    "Sin goma": [number, number];
+    "Usado (O)": [number, number];
+  };
+  explicacion: string;
+};
+
+export type CardAnalysis = {
   tipo_pieza: "carta";
   juego_o_coleccion: string;
   nombre_carta: string;
@@ -68,6 +87,7 @@ export type StampAnalysis = {
   };
   explicacion: string;
 };
+
 
   tipo_pieza: "sello";
   pais: string;
