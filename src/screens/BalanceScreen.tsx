@@ -10,6 +10,7 @@ import { fetchItems, totalCost, type Item } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
 import { makeStyles, useTheme } from "@/src/theme";
 import { euro } from "@/src/verdict";
+import { useVertical } from "@/src/vertical";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -18,6 +19,8 @@ export default function BalanceScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
+  const [vertical] = useVertical();
+  const isCollectible = vertical === "coleccionismo";
 
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +33,7 @@ export default function BalanceScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetchItems();
+      const res = await fetchItems(vertical);
       setItems(res.items);
       setOffline(res.offline);
       setError("");
@@ -40,7 +43,7 @@ export default function BalanceScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [vertical]);
 
   useFocusEffect(
     useCallback(() => {
@@ -53,13 +56,23 @@ export default function BalanceScreen() {
     const stock = items.filter((i) => i.estado === "En stock");
     const invested = r2(items.reduce((s, i) => s + totalCost(i), 0));
     const income = r2(sold.reduce((s, i) => s + (i.precio_venta ?? 0) - (i.comisiones ?? 0), 0));
+    const stockValue = r2(stock.reduce((s, i) => s + i.ver, 0));
+
+    const coins = items.filter((i) => i.collectible_data?.tipo_pieza === "moneda").length;
+    const stamps = items.filter((i) => i.collectible_data?.tipo_pieza === "sello").length;
+    const cards = items.filter((i) => i.collectible_data?.tipo_pieza === "carta").length;
+
     return {
       invested,
       income,
       net: r2(income - invested),
-      stockValue: r2(stock.reduce((s, i) => s + i.ver, 0)),
+      gain: r2(stockValue - invested),
+      stockValue,
       soldCount: sold.length,
       stockCount: stock.length,
+      coins,
+      stamps,
+      cards,
     };
   }, [items]);
 
@@ -75,13 +88,12 @@ export default function BalanceScreen() {
       setExporting(null);
     }
   };
-
-  const netColor = stats.net >= 0 ? colors.success : colors.error;
+  const netColor = (isCollectible ? stats.gain : stats.net) >= 0 ? colors.success : colors.error;
   const pending = items.filter((i) => i.pending).length;
 
   return (
     <View style={styles.root} testID="balance-screen">
-      <AppHeader section="Balance" />
+      <AppHeader section={isCollectible ? "Valor Colección" : "Balance"} />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.brandPrimary} size="large" />
@@ -109,42 +121,76 @@ export default function BalanceScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.hero, { borderColor: netColor }]} testID="balance-net-profit">
-            <Text style={styles.heroLabel}>BENEFICIO NETO REAL</Text>
-            <Text style={[styles.heroValue, { color: netColor }]} testID="balance-net-value" numberOfLines={1} adjustsFontSizeToFit>
-              {stats.net > 0 ? "+" : ""}{euro(stats.net)}
-            </Text>
-            <Text style={styles.heroSub}>Entradas − Salidas</Text>
-          </View>
+          {isCollectible ? (
+            <>
+              <View style={[styles.hero, { borderColor: colors.brandPrimary }]}>
+                <Text style={styles.heroLabel}>VALOR ESTIMADO DE COLECCIÓN</Text>
+                <Text style={[styles.heroValue, { color: colors.brandPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {euro(stats.stockValue)}
+                </Text>
+                <Text style={styles.heroSub}>
+                  Plusvalía latente: {stats.gain >= 0 ? "+" : ""}{euro(stats.gain)}
+                </Text>
+              </View>
 
-          <View style={styles.grid}>
-            <StatCard
-              testID="balance-stat-invested"
-              icon="arrow-up-bold-circle"
-              iconColor={colors.error}
-              label="Total invertido"
-              sub="Compras + gastos extra"
-              value={euro(stats.invested)}
-            />
-            <StatCard
-              testID="balance-stat-income"
-              icon="arrow-down-bold-circle"
-              iconColor={colors.success}
-              label="Total ingresado"
-              sub={`${stats.soldCount} ${stats.soldCount === 1 ? "venta" : "ventas"} · neto de comisiones`}
-              value={euro(stats.income)}
-            />
-            <StatCard
-              testID="balance-stat-stock-value"
-              icon="package-variant-closed"
-              iconColor={colors.brandPrimary}
-              label="Valor del stock"
-              sub={`${stats.stockCount} ${stats.stockCount === 1 ? "artículo" : "artículos"} sin vender`}
-              value={euro(stats.stockValue)}
-              wide
-            />
-          </View>
+              <View style={styles.grid}>
+                <StatCard
+                  testID="balance-col-invested"
+                  icon="arrow-up-bold-circle"
+                  iconColor={colors.error}
+                  label="Coste invertido"
+                  sub={`${items.length} piezas catalogadas`}
+                  value={euro(stats.invested)}
+                />
+                <StatCard
+                  testID="balance-col-breakdown"
+                  icon="coins"
+                  iconColor={colors.brandPrimary}
+                  label="Desglose piezas"
+                  sub={`${stats.coins} monedas · ${stats.stamps} sellos · ${stats.cards} cartas`}
+                  value={`${items.length}`}
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.hero, { borderColor: netColor }]} testID="balance-net-profit">
+                <Text style={styles.heroLabel}>BENEFICIO NETO REAL</Text>
+                <Text style={[styles.heroValue, { color: netColor }]} testID="balance-net-value" numberOfLines={1} adjustsFontSizeToFit>
+                  {stats.net > 0 ? "+" : ""}{euro(stats.net)}
+                </Text>
+                <Text style={styles.heroSub}>Entradas − Salidas</Text>
+              </View>
 
+              <View style={styles.grid}>
+                <StatCard
+                  testID="balance-stat-invested"
+                  icon="arrow-up-bold-circle"
+                  iconColor={colors.error}
+                  label="Total invertido"
+                  sub="Compras + gastos extra"
+                  value={euro(stats.invested)}
+                />
+                <StatCard
+                  testID="balance-stat-income"
+                  icon="arrow-down-bold-circle"
+                  iconColor={colors.success}
+                  label="Total ingresado"
+                  sub={`${stats.soldCount} ${stats.soldCount === 1 ? "venta" : "ventas"} · neto de comisiones`}
+                  value={euro(stats.income)}
+                />
+                <StatCard
+                  testID="balance-stat-stock-value"
+                  icon="package-variant-closed"
+                  iconColor={colors.brandPrimary}
+                  label="Valor del stock"
+                  sub={`${stats.stockCount} ${stats.stockCount === 1 ? "artículo" : "artículos"} sin vender`}
+                  value={euro(stats.stockValue)}
+                  wide
+                />
+              </View>
+            </>
+          )}
           <Pressable
             testID="balance-export-button"
             onPress={() => setShowFormats((s) => !s)}
@@ -202,7 +248,7 @@ function StatCard({
   wide,
 }: {
   testID: string;
-  icon: "arrow-up-bold-circle" | "arrow-down-bold-circle" | "package-variant-closed";
+  icon: "arrow-up-bold-circle" | "arrow-down-bold-circle" | "package-variant-closed" | "coins";
   iconColor: string;
   label: string;
   sub: string;
@@ -226,65 +272,23 @@ const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
   content: { padding: 16, gap: 16 },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: c.warning,
-  },
+  banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: c.warning },
   bannerText: { color: c.onWarning, fontSize: 14, fontWeight: "800", flex: 1 },
-  hero: {
-    padding: 20,
-    borderRadius: 20,
-    backgroundColor: c.surfaceSecondary,
-    borderWidth: 2,
-    gap: 4,
-  },
+  hero: { padding: 20, borderRadius: 20, backgroundColor: c.surfaceSecondary, borderWidth: 2, gap: 4 },
   heroLabel: { color: c.onSurface, fontSize: 14, fontWeight: "900", letterSpacing: 1.5 },
   heroValue: { fontSize: 48, fontWeight: "900" },
   heroSub: { color: c.muted, fontSize: 14, fontWeight: "600" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  card: {
-    flexBasis: "46%",
-    flexGrow: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: c.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: c.border,
-    gap: 6,
-  },
+  card: { flexBasis: "46%", flexGrow: 1, padding: 16, borderRadius: 12, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, gap: 6 },
   cardWide: { flexBasis: "100%" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   cardLabel: { color: c.onSurfaceTertiary, fontSize: 12, fontWeight: "900", letterSpacing: 0.3, flex: 1 },
   cardValue: { color: c.onSurface, fontSize: 28, fontWeight: "900" },
   cardSub: { color: c.muted, fontSize: 12, fontWeight: "600" },
-  exportBtn: {
-    minHeight: 76,
-    borderRadius: 12,
-    backgroundColor: c.brandPrimary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-  },
+  exportBtn: { minHeight: 76, borderRadius: 12, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 16 },
   exportText: { color: c.onBrandPrimary, fontSize: 18, fontWeight: "900", letterSpacing: 0.5, flexShrink: 1 },
   formats: { flexDirection: "row", gap: 12 },
-  formatBtn: {
-    flex: 1,
-    height: 64,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: c.brandPrimary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+  formatBtn: { flex: 1, height: 64, borderRadius: 12, borderWidth: 2, borderColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   formatText: { color: c.brandPrimary, fontSize: 18, fontWeight: "900" },
   exportMsg: { fontSize: 15, fontWeight: "800", textAlign: "center" },
   hint: { color: c.muted, fontSize: 13, textAlign: "center", lineHeight: 19 },
