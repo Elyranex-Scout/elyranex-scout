@@ -15,7 +15,7 @@ import { ResultView } from "@/src/components/scanner/ResultView";
 import { analyzeBarcode, analyzeCard, analyzeCoin, analyzePhoto, analyzeStamp, analyzeText, type Analysis } from "@/src/ai";
 import { createItem, newClientId, type CollectiblePhotos, type CollectionDest, type Origin } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
-import { compressPhoto } from "@/src/photo";
+import { compressPhoto, cropCollectibleHD } from "@/src/photo";
 import { DEFAULT_MIN_PROFIT, loadAiKey, loadMinProfit } from "@/src/settings";
 import { makeStyles, useTheme } from "@/src/theme";
 import { computeVerdict, type Verdict } from "@/src/verdict";
@@ -26,8 +26,8 @@ type CollectibleKind = "moneda" | "sello" | "carta" | "manual";
 type Phase = "camera" | "analyzing" | "result" | "error";
 
 const BARCODE_TYPES = ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] as const;
-const ZOOM_LEVELS = [0, 0.25, 0.5] as const;
-const ZOOM_LABELS = ["1x", "1.5x", "2x"] as const;
+const ZOOM_LEVELS = [0, 0.2, 0.35, 0.55] as const;
+const ZOOM_LABELS = ["1x", "1,2x", "1,5x", "2x"] as const;
 
 export default function ScannerScreen() {
   const styles = useStyles();
@@ -55,9 +55,11 @@ export default function ScannerScreen() {
 
   const [cPhotos, setCPhotos] = useState<string[]>([]);
   const [cResult, setCResult] = useState<CollectibleAnalysis | null>(null);
-  const [zoomIdx, setZoomIdx] = useState(0);
+  const [zoomIdx, setZoomIdx] = useState(1);
   const [torch, setTorch] = useState(false);
   const [stampHorizontal, setStampHorizontal] = useState(false);
+  const [focusPulse, setFocusPulse] = useState(false);
+  const [afOn, setAfOn] = useState(true);
 
   const [errorMsg, setErrorMsg] = useState("");
   const [needsKey, setNeedsKey] = useState(false);
@@ -80,6 +82,14 @@ export default function ScannerScreen() {
   const asking = askingText ? Math.min(99999, parseFloat(askingText.replace(",", ".")) || 0) : null;
   const isCollectible = vertical === "coleccionismo";
   const isManual = isCollectible ? cKind === "manual" : mode === "manual";
+
+  const triggerRefocus = () => {
+    if (Platform.OS !== "web") Vibration.vibrate(25);
+    setFocusPulse(true);
+    setAfOn(false);
+    setTimeout(() => setAfOn(true), 120);
+    setTimeout(() => setFocusPulse(false), 650);
+  };
 
   const reset = () => {
     setPhotoUri(null);
@@ -138,9 +148,9 @@ export default function ScannerScreen() {
     }
   };
 
-  const grabCompressedPhoto = async (): Promise<string> => {
+  const capturePhoto = async (cropMode?: "square" | "edge"): Promise<string> => {
     if (!cameraRef.current) throw new Error("Cámara no disponible.");
-    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.55, shutterSound: false });
+    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.75, shutterSound: false });
     const base64 = (pic.base64 ?? (pic.uri.startsWith("data:") ? pic.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
     if (Platform.OS !== "web" && pic.uri.startsWith("file:")) {
       try {
@@ -149,6 +159,9 @@ export default function ScannerScreen() {
     }
     if (!base64) throw new Error("No se pudo capturar la foto.");
     const dataUri = `data:image/jpeg;base64,${base64}`;
+    if (cropMode) {
+      return await cropCollectibleHD(dataUri, cropMode);
+    }
     try {
       const small = await compressPhoto(dataUri);
       return small.startsWith("data:") ? small : `data:image/jpeg;base64,${small}`;
@@ -161,18 +174,20 @@ export default function ScannerScreen() {
     if (busy.current || !cameraRef.current) return;
     busy.current = true;
     try {
-      const dataUri = await grabCompressedPhoto();
       if (!isCollectible) {
+        const dataUri = await capturePhoto();
         setPhotoUri(dataUri);
         await runReventa((key) => analyzePhoto(key, dataUri));
         return;
       }
 
-      const nextList = [...cPhotos, dataUri];
+      const isEdgeStep = cKind === "moneda" && cPhotos.length === 2;
+      const croppedUri = await capturePhoto(isEdgeStep ? "edge" : "square");
+      const nextList = [...cPhotos, croppedUri];
       setCPhotos(nextList);
 
       if (cKind === "sello") {
-        await runCollectible((key) => analyzeStamp(key, dataUri));
+        await runCollectible((key) => analyzeStamp(key, croppedUri));
       } else if (cKind === "moneda" && nextList.length >= 3) {
         await runCollectible((key) =>
           analyzeCoin(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)!, canto: nextList.at(2)! })
@@ -375,25 +390,27 @@ export default function ScannerScreen() {
           saving={false}
           onDiscard={reset}
           onBuy={() => { setBuyError(""); setBuyOpen(true); }}
-          onMount={() => { if (verdict?.light === "green") Vibration.vibrate([0, 180, 120, 180]); }}
+          onMount={() => { if (verdict?.light === "green") Vibration.vibrate(); }}
         />
         <BuyModal visible={buyOpen} defaultPrice={askingText} saving={saving} error={buyError} onCancel={() => setBuyOpen(false)} onConfirm={confirmBuy} />
       </View>
     );
   }
 
-  const stepPrompt =
+  const guideHeadline =
     cKind === "moneda"
       ? cPhotos.length === 0
-        ? "Paso 1/3 · Encuadra el ANVERSO (Cara)"
+        ? "1/3 · Encuadra el ANVERSO (Cara)"
         : cPhotos.length === 1
-        ? "Paso 2/3 · Gira y encuadra el REVERSO (Cruz)"
-        : "Paso 3/3 · Encuadra el CANTO (Borde)"
+        ? "2/3 · Gira y encuadra el REVERSO (Cruz)"
+        : "3/3 · Sujeta de perfil para el CANTO"
       : cKind === "sello"
-      ? "Encuadra el ANVERSO del sello (dentado visible)"
+      ? "Encuadra el ANVERSO del sello"
       : cPhotos.length === 0
-      ? "Paso 1/2 · Encuadra el ANVERSO de la carta"
-      : "Paso 2/2 · Encuadra el REVERSO (o analiza ya)";
+      ? "1/2 · Encuadra el ANVERSO de la carta"
+      : "2/2 · Encuadra el REVERSO (o analiza ya)";
+
+  const guideSubline = "Acércala hasta llenar el círculo · Toca en el centro para enfocar";
 
   const shutterLabel = !isCollectible
     ? "ANALIZAR"
@@ -408,6 +425,54 @@ export default function ScannerScreen() {
   return (
     <View style={styles.root} testID="scanner-screen">
       <AppHeader section={isCollectible ? "Coleccionismo" : "Escáner"} />
+
+      <View style={styles.topBar}>
+        {!isCollectible ? (
+          <View style={styles.modeSwitch}>
+            {(
+              [
+                { id: "photo", label: "Foto IA", icon: "creation" },
+                { id: "barcode", label: "Código", icon: "barcode" },
+                { id: "manual", label: "Texto", icon: "pencil-outline" },
+              ] as const
+            ).map((m) => {
+              const active = mode === m.id;
+              return (
+                <Pressable key={m.id} onPress={() => { setMode(m.id); busy.current = false; }} style={[styles.modeBtn, active && styles.modeBtnActive]}>
+                  <Icon name={m.icon} size={15} color={active ? colors.onBrandPrimary : colors.onSurface} />
+                  <Text style={[styles.modeLabel, active && styles.modeLabelActive]} numberOfLines={1}>{m.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.modeSwitch}>
+            {(
+              [
+                { id: "moneda", label: "Moneda", icon: "coins" },
+                { id: "sello", label: "Sello", icon: "stamp" },
+                { id: "carta", label: "Carta", icon: "layers" },
+                { id: "manual", label: "Texto", icon: "pencil-outline" },
+              ] as const
+            ).map((k) => {
+              const active = cKind === k.id;
+              return (
+                <Pressable key={k.id} onPress={() => { setCKind(k.id); setCPhotos([]); busy.current = false; }} style={[styles.modeBtn, active && styles.modeBtnActive]}>
+                  <Icon name={k.icon} size={14} color={active ? colors.onBrandPrimary : colors.onSurface} />
+                  <Text style={[styles.modeLabel, active && styles.modeLabelActive]} numberOfLines={1}>{k.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {isCollectible && !isManual ? (
+          <View style={styles.coachBanner}>
+            <Text style={styles.coachTitle}>{guideHeadline}</Text>
+            <Text style={styles.coachSub}>{guideSubline}</Text>
+          </View>
+        ) : null}
+      </View>
       {!isManual && !permission ? (
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
       ) : !isManual && !granted ? (
@@ -421,6 +486,7 @@ export default function ScannerScreen() {
                   ref={cameraRef}
                   style={styles.camera}
                   facing="back"
+                  autofocus={afOn ? "on" : "off"}
                   zoom={ZOOM_LEVELS.at(zoomIdx) ?? 0}
                   enableTorch={torch}
                   barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
@@ -428,17 +494,19 @@ export default function ScannerScreen() {
                 />
               ) : null}
 
-              <View style={styles.finder} pointerEvents="none">
+              <Pressable onPress={triggerRefocus} style={styles.finder}>
                 {isCollectible && cKind === "moneda" && cPhotos.length < 2 ? (
-                  <View style={styles.coinCircle}>
+                  <View style={[styles.coinCircle, focusPulse && styles.focusFlash]}>
                     <View style={styles.coinInnerRing} />
+                    <View style={styles.crossH} />
+                    <View style={styles.crossV} />
                   </View>
                 ) : isCollectible && cKind === "moneda" && cPhotos.length === 2 ? (
-                  <View style={styles.coinEdgeGuide} />
+                  <View style={[styles.coinEdgeGuide, focusPulse && styles.focusFlash]} />
                 ) : isCollectible && cKind === "sello" ? (
-                  <View style={[styles.stampGuide, stampHorizontal && styles.stampGuideHoriz]} />
+                  <View style={[styles.stampGuide, stampHorizontal && styles.stampGuideHoriz, focusPulse && styles.focusFlash]} />
                 ) : isCollectible && cKind === "carta" ? (
-                  <View style={styles.cardGuide} />
+                  <View style={[styles.cardGuide, focusPulse && styles.focusFlash]} />
                 ) : (
                   <View style={[styles.frame, !isCollectible && mode === "barcode" && styles.frameBarcode]}>
                     <View style={[styles.corner, styles.tl]} />
@@ -447,41 +515,45 @@ export default function ScannerScreen() {
                     <View style={[styles.corner, styles.br]} />
                   </View>
                 )}
-              </View>
+              </Pressable>
 
               <View style={styles.macroTools}>
                 <Pressable onPress={() => setZoomIdx((z) => (z + 1) % ZOOM_LEVELS.length)} style={styles.toolBtn}>
-                  <Icon name="zoom-in" size={18} color={colors.onSurface} />
+                  <Icon name="zoom-in" size={16} color="#FFF" />
                   <Text style={styles.toolText}>{ZOOM_LABELS.at(zoomIdx)}</Text>
                 </Pressable>
                 <Pressable onPress={() => setTorch((t) => !t)} style={[styles.toolBtn, torch && styles.toolBtnActive]}>
-                  <Icon name={torch ? "flashlight" : "flashlight-off"} size={18} color={torch ? colors.onBrandPrimary : colors.onSurface} />
+                  <Icon name={torch ? "flashlight" : "flashlight-off"} size={16} color={torch ? colors.onBrandPrimary : "#FFF"} />
                 </Pressable>
                 {isCollectible && cKind === "sello" ? (
                   <Pressable onPress={() => setStampHorizontal((h) => !h)} style={styles.toolBtn}>
-                    <Icon name="camera-retake" size={18} color={colors.onSurface} />
-                    <Text style={styles.toolText}>{stampHorizontal ? "Horiz." : "Vert."}</Text>
+                    <Icon name="camera-retake" size={16} color="#FFF" />
+                    <Text style={styles.toolText}>{stampHorizontal ? "Hor." : "Ver."}</Text>
                   </Pressable>
                 ) : null}
               </View>
 
-              {isCollectible ? (
-                <View style={[styles.stepBanner, { backgroundColor: `${colors.surface}D9` }]}>
-                  <Text style={styles.stepText}>{stepPrompt}</Text>
+              {isCollectible && cKind !== "sello" ? (
+                <View style={styles.slotStrip}>
+                  {(cKind === "moneda" ? ["Anverso", "Reverso", "Canto"] : ["Anverso", "Reverso"]).map((lbl, idx) => {
+                    const uri = cPhotos.at(idx);
+                    const activeSlot = cPhotos.length === idx;
+                    return (
+                      <View key={lbl} style={[styles.slotBox, activeSlot && styles.slotBoxActive]}>
+                        {uri ? <Image source={{ uri }} style={styles.slotImg} /> : <Text style={styles.slotNum}>{idx + 1}</Text>}
+                        <Text style={styles.slotLabel}>{lbl}</Text>
+                      </View>
+                    );
+                  })}
                   {cPhotos.length > 0 ? (
-                    <View style={styles.thumbRow}>
-                      {cPhotos.map((uri, i) => (
-                        <Image key={i} source={{ uri }} style={styles.thumbImg} />
-                      ))}
-                      <Pressable onPress={() => { setCPhotos([]); busy.current = false; }} style={styles.retakeChip}>
-                        <Text style={styles.retakeChipText}>Reiniciar</Text>
-                      </Pressable>
-                      {cKind === "carta" && cPhotos.length === 1 ? (
-                        <Pressable onPress={analyzeCardOnePhoto} style={styles.fastAnalyzeChip}>
-                          <Text style={styles.fastAnalyzeText}>Analizar ya (1 foto)</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
+                    <Pressable onPress={() => { setCPhotos([]); busy.current = false; }} style={styles.slotReset}>
+                      <Icon name="close" size={16} color="#FFF" />
+                    </Pressable>
+                  ) : null}
+                  {cKind === "carta" && cPhotos.length === 1 ? (
+                    <Pressable onPress={analyzeCardOnePhoto} style={styles.fastAnalyzeChip}>
+                      <Text style={styles.fastAnalyzeText}>Analizar ya</Text>
+                    </Pressable>
                   ) : null}
                 </View>
               ) : null}
@@ -497,19 +569,11 @@ export default function ScannerScreen() {
                 </View>
                 <Text style={styles.manualSubtitle}>
                   {isCollectible
-                    ? 'Ej: "Moneda 5 pesetas 1949 estrella 19-51" o "Charizard Base Set 4/102"'
+                    ? 'Ej: "Moneda 5 céntimos euro España 2025 M" o "Charizard Base Set 4/102"'
                     : 'Ej: "Nintendo Switch OLED blanca con caja y cargador"'}
                 </Text>
                 <View style={styles.manualInputWrap}>
-                  <TextInput
-                    value={manualText}
-                    onChangeText={setManualText}
-                    placeholder="Escribe los detalles aquí..."
-                    placeholderTextColor={colors.muted}
-                    multiline
-                    maxLength={220}
-                    style={styles.manualInput}
-                  />
+                  <TextInput value={manualText} onChangeText={setManualText} placeholder="Escribe los detalles aquí..." placeholderTextColor={colors.muted} multiline maxLength={220} style={styles.manualInput} />
                   {manualText ? (
                     <Pressable onPress={() => setManualText("")} style={styles.manualClear} hitSlop={8}>
                       <Icon name="close-circle" size={20} color={colors.muted} />
@@ -519,69 +583,18 @@ export default function ScannerScreen() {
               </View>
             </View>
           )}
-          {!isCollectible ? (
-            <View style={[styles.modeSwitch, { backgroundColor: `${colors.surface}B3` }]}>
-              {(
-                [
-                  { id: "photo", label: "Foto IA", icon: "creation" },
-                  { id: "barcode", label: "Código", icon: "barcode" },
-                  { id: "manual", label: "Texto", icon: "pencil-outline" },
-                ] as const
-              ).map((m) => {
-                const active = mode === m.id;
-                return (
-                  <Pressable key={m.id} onPress={() => { setMode(m.id); busy.current = false; }} style={[styles.modeBtn, active && styles.modeBtnActive]}>
-                    <Icon name={m.icon} size={16} color={active ? colors.onBrandPrimary : colors.onSurface} />
-                    <Text style={[styles.modeLabel, active && styles.modeLabelActive]} numberOfLines={1}>{m.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={[styles.modeSwitch, { backgroundColor: `${colors.surface}CC` }]}>
-              {(
-                [
-                  { id: "moneda", label: "Moneda", icon: "coins" },
-                  { id: "sello", label: "Sello", icon: "stamp" },
-                  { id: "carta", label: "Carta", icon: "layers" },
-                  { id: "manual", label: "Texto", icon: "pencil-outline" },
-                ] as const
-              ).map((k) => {
-                const active = cKind === k.id;
-                return (
-                  <Pressable key={k.id} onPress={() => { setCKind(k.id); setCPhotos([]); busy.current = false; }} style={[styles.modeBtn, active && styles.modeBtnActive]}>
-                    <Icon name={k.icon} size={15} color={active ? colors.onBrandPrimary : colors.onSurface} />
-                    <Text style={[styles.modeLabel, active && styles.modeLabelActive]} numberOfLines={1}>{k.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
           <View style={[styles.panel, { paddingBottom: bottomChrome + 10 }]}>
             {!isCollectible ? (
               <View style={styles.rule}>
                 <View style={styles.dot} />
-                <Text style={styles.ruleText} numberOfLines={1}>
-                  Luz Verde desde <Text style={styles.ruleValue}>{minProfit} €</Text> de beneficio
-                </Text>
+                <Text style={styles.ruleText} numberOfLines={1}>Luz Verde desde <Text style={styles.ruleValue}>{minProfit} €</Text> de beneficio</Text>
               </View>
             ) : null}
             <View style={styles.actionRow}>
               <View style={styles.priceBox}>
-                <TextInput
-                  value={askingText}
-                  onChangeText={(t) => setAskingText(t.replace(/[^0-9.,]/g, "").slice(0, 7))}
-                  placeholder="¿Cuánto pide?"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  style={[styles.priceInput, !askingText && styles.priceInputEmpty]}
-                />
+                <TextInput value={askingText} onChangeText={(t) => setAskingText(t.replace(/[^0-9.,]/g, "").slice(0, 7))} placeholder="¿Cuánto pide?" placeholderTextColor={colors.muted} keyboardType="decimal-pad" returnKeyType="done" style={[styles.priceInput, !askingText && styles.priceInputEmpty]} />
                 {askingText ? (
-                  <Pressable onPress={() => setAskingText("")} style={styles.clear} hitSlop={8}>
-                    <Icon name="close-circle" size={18} color={colors.muted} />
-                  </Pressable>
+                  <Pressable onPress={() => setAskingText("")} style={styles.clear} hitSlop={8}><Icon name="close-circle" size={18} color={colors.muted} /></Pressable>
                 ) : null}
                 <Text style={styles.priceEuro}>€</Text>
               </View>
@@ -610,7 +623,7 @@ export default function ScannerScreen() {
                 <>
                   <ActivityIndicator color={colors.brandPrimary} size="large" />
                   <Text style={styles.overlayTitle}>Analizando con Groq…</Text>
-                  <Text style={styles.overlayText}>{isCollectible ? "Examinando detalles y catálogo" : "Identificando y tasando el artículo"}</Text>
+                  <Text style={styles.overlayText}>{isCollectible ? "Analizando los 5 puntos de referencia" : "Identificando y tasando el artículo"}</Text>
                 </>
               ) : (
                 <>
@@ -618,13 +631,9 @@ export default function ScannerScreen() {
                   <Text style={styles.overlayTitle}>No se pudo analizar</Text>
                   <Text style={styles.overlayText}>{errorMsg}</Text>
                   {needsKey ? (
-                    <Pressable onPress={() => { reset(); router.push("/settings"); }} style={styles.overlayBtn}>
-                      <Text style={styles.overlayBtnText}>IR A CONFIGURACIÓN</Text>
-                    </Pressable>
+                    <Pressable onPress={() => { reset(); router.push("/settings"); }} style={styles.overlayBtn}><Text style={styles.overlayBtnText}>IR A CONFIGURACIÓN</Text></Pressable>
                   ) : null}
-                  <Pressable onPress={reset} style={styles.overlayBtnGhost}>
-                    <Text style={styles.overlayBtnGhostText}>REINTENTAR</Text>
-                  </Pressable>
+                  <Pressable onPress={reset} style={styles.overlayBtnGhost}><Text style={styles.overlayBtnGhostText}>REINTENTAR</Text></Pressable>
                 </>
               )}
             </Animated.View>
@@ -643,35 +652,48 @@ export default function ScannerScreen() {
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  topBar: { backgroundColor: c.surface, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border },
+  modeSwitch: { flexDirection: "row", backgroundColor: c.surfaceSecondary, borderRadius: 10, padding: 3, gap: 4 },
+  modeBtn: { flex: 1, height: 36, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
+  modeBtnActive: { backgroundColor: c.brandPrimary },
+  modeLabel: { color: c.onSurface, fontSize: 11, fontWeight: "800" },
+  modeLabelActive: { color: c.onBrandPrimary, fontWeight: "900" },
+  coachBanner: { backgroundColor: c.surfaceSecondary, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: c.brandPrimary, alignItems: "center" },
+  coachTitle: { color: c.brandPrimary, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  coachSub: { color: c.onSurfaceTertiary, fontSize: 11, fontWeight: "700", textAlign: "center" },
   cameraWrap: { flex: 1, position: "relative" },
   camera: { flex: 1 },
-  finder: { position: "absolute", top: 68, left: 24, right: 24, bottom: 136, alignItems: "center", justifyContent: "center" },
-  frame: { width: "100%", height: "80%", position: "relative" },
+  finder: { position: "absolute", top: 12, left: 20, right: 20, bottom: 76, alignItems: "center", justifyContent: "center" },
+  frame: { width: "100%", height: "82%", position: "relative" },
   frameBarcode: { height: "42%" },
-  coinCircle: { width: 230, height: 230, borderRadius: 115, borderWidth: 3, borderColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
-  coinInnerRing: { width: 204, height: 204, borderRadius: 102, borderWidth: 1, borderColor: "rgba(255,255,255,0.45)", borderStyle: "dashed" },
-  coinEdgeGuide: { width: "86%", height: 58, borderRadius: 12, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.2)" },
-  stampGuide: { width: 190, height: 240, borderRadius: 8, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.25)" },
-  stampGuideHoriz: { width: 250, height: 185 },
-  cardGuide: { width: 215, height: 300, borderRadius: 14, borderWidth: 3, borderColor: c.brandPrimary },
-  macroTools: { position: "absolute", right: 12, top: 68, gap: 8 },
-  toolBtn: { height: 40, paddingHorizontal: 10, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.65)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  coinCircle: { width: 205, height: 205, borderRadius: 103, borderWidth: 3, borderColor: c.brandPrimary, alignItems: "center", justifyContent: "center" },
+  coinInnerRing: { width: 178, height: 178, borderRadius: 89, borderWidth: 1, borderColor: "rgba(255,255,255,0.5)", borderStyle: "dashed" },
+  crossH: { position: "absolute", width: 22, height: 2, backgroundColor: c.brandPrimary },
+  crossV: { position: "absolute", width: 2, height: 22, backgroundColor: c.brandPrimary },
+  focusFlash: { borderColor: "#FFFFFF", transform: [{ scale: 0.96 }] },
+  coinEdgeGuide: { width: "86%", height: 54, borderRadius: 12, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.2)" },
+  stampGuide: { width: 175, height: 220, borderRadius: 8, borderWidth: 3, borderColor: c.brandPrimary, backgroundColor: "rgba(0,0,0,0.25)" },
+  stampGuideHoriz: { width: 230, height: 170 },
+  cardGuide: { width: 195, height: 270, borderRadius: 14, borderWidth: 3, borderColor: c.brandPrimary },
+  macroTools: { position: "absolute", right: 10, top: 12, gap: 8 },
+  toolBtn: { height: 38, paddingHorizontal: 9, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   toolBtnActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
-  toolText: { color: "#FFF", fontSize: 12, fontWeight: "900" },
-  stepBanner: { position: "absolute", bottom: 10, left: 12, right: 12, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: c.borderStrong, gap: 6 },
-  stepText: { color: c.onSurface, fontSize: 13, fontWeight: "900", textAlign: "center" },
-  thumbRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" },
-  thumbImg: { width: 38, height: 38, borderRadius: 6, borderWidth: 1, borderColor: c.brandPrimary },
-  retakeChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.borderStrong },
-  retakeChipText: { color: c.onSurface, fontSize: 11, fontWeight: "800" },
-  fastAnalyzeChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.brandPrimary },
+  toolText: { color: "#FFF", fontSize: 11, fontWeight: "900" },
+  slotStrip: { position: "absolute", bottom: 8, left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  slotBox: { width: 58, height: 56, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.72)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  slotBoxActive: { borderColor: c.brandPrimary, borderWidth: 2 },
+  slotImg: { width: 58, height: 38 },
+  slotNum: { color: "#FFF", fontSize: 15, fontWeight: "900" },
+  slotLabel: { color: "#FFF", fontSize: 9, fontWeight: "800", marginTop: 1 },
+  slotReset: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.75)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
+  fastAnalyzeChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: c.brandPrimary },
   fastAnalyzeText: { color: c.onBrandPrimary, fontSize: 11, fontWeight: "900" },
   corner: { position: "absolute", width: 28, height: 28, borderColor: c.brandPrimary, borderWidth: 4 },
   tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 12 },
   tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 12 },
   bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 12 },
   br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 12 },
-  manualBody: { flex: 1, paddingTop: 76, paddingHorizontal: 16, backgroundColor: c.surface },
+  manualBody: { flex: 1, paddingTop: 16, paddingHorizontal: 16, backgroundColor: c.surface },
   manualCard: { backgroundColor: c.surfaceContainerLow ?? c.surface, borderRadius: 16, borderWidth: 1.5, borderColor: c.borderStrong, padding: 16, gap: 10 },
   manualHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   manualTitle: { color: c.onSurface, fontSize: 17, fontWeight: "900", flex: 1 },
@@ -679,11 +701,6 @@ const useStyles = makeStyles((c) => ({
   manualInputWrap: { position: "relative", marginTop: 4 },
   manualInput: { minHeight: 112, borderRadius: 12, borderWidth: 2, borderColor: c.borderStrong, backgroundColor: c.surface, color: c.onSurface, fontSize: 16, padding: 12, paddingRight: 36, textAlignVertical: "top" },
   manualClear: { position: "absolute", top: 10, right: 10 },
-  modeSwitch: { position: "absolute", top: 12, left: 12, right: 12, flexDirection: "row", borderRadius: 12, padding: 4, gap: 4 },
-  modeBtn: { flex: 1, height: 40, borderRadius: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 4 },
-  modeBtnActive: { backgroundColor: c.brandPrimary },
-  modeLabel: { color: c.onSurface, fontSize: 12, fontWeight: "800" },
-  modeLabelActive: { color: c.onBrandPrimary },
   panel: { backgroundColor: c.surface, paddingHorizontal: 14, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: c.borderStrong },
   rule: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.brandPrimary },
