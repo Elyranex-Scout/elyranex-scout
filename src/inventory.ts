@@ -33,7 +33,7 @@ export type CollectiblePhotos = {
 };
 
 export type CollectibleData = {
-  tipo_pieza: "moneda" | "sello";
+  tipo_pieza: "moneda" | "sello" | "carta";
   pais: string;
   denominacion: string;
   anio: string;
