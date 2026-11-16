@@ -213,8 +213,7 @@ const toDataUrl = (b64: string, mime = "image/jpeg") =>
   b64.startsWith("data:") ? b64 : `data:${mime};base64,${b64}`;
 
 export async function testConnection(apiKey: string): Promise<string> {
-  const model = await detectModel(apiKey);
-  const res = await call(apiKey, "Responde solo OK", false, [model]);
+  const res = await call(apiKey, "Responde solo OK", false );
   return res.model;
 }
 
