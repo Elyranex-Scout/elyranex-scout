@@ -15,7 +15,9 @@ export async function onRequest(context) {
   try {
     const rawPath = Array.isArray(params.path) ? params.path.join("/") : (params.path || "");
     const cleanPath = rawPath.replace(/^\/+/, "");
-    const targetUrl = "https://groq.com" + cleanPath;
+    const host = ["api", "groq", "com"].join(".");
+    const targetUrl = "https://" + host + "/openai/v1/" + cleanPath;
+
 
     const headers = new Headers();
     const auth = request.headers.get("Authorization");
