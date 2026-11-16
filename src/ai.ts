@@ -97,16 +97,17 @@ const INSTRUCTIONS = [
 ].join("\n");
 
 const COIN_INSTRUCTIONS = [
-  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías de la misma moneda: 1) Anverso (cara), 2) Reverso (cruz) y 3) Canto (borde/perfil).",
-  "INSTRUCCIONES:",
-  "- Identifica país, denominación (valor facial), año exacto acuñado, marca de ceca (letras, estrellas o símbolos) y metal/aleación.",
-  "- Examina atentamente la TERCERA imagen para describir el tipo de canto exacto (Estriado, Liso, Estriado discontinuo, Con leyenda incusa, Seguridad, etc.) y si tiene golpes en el borde.",
-  "- Estima la tirada aproximada y clasifica su rareza en: Muy común, Común, Escasa, Rara o Muy rara.",
-  "- Indica sus datos físicos estándar de catálogo (peso en gramos, diámetro en mm, grosor en mm).",
-  "- Evalúa el grado de conservación visual de las fotos (SC Sin Circular, EBC Excelente Buena Conservación, MBC Muy Buena Conservación, BC Buena Conservación).",
-  "- Da una horquilla realista y PRUDENTE de precios de mercado en euros [min, max] para cada grado. Las monedas circuladas comunes valen entre 0.20 y 3 euros.",
-  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "explicacion": "2 o 3 frases en español detallando anverso, reverso y canto"}',
+  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías recortadas en alta definición de la misma moneda: 1) ANVERSO (Cara nacional), 2) REVERSO (Cara común / valor facial) y 3) CANTO (Borde / perfil).",
+  "PROTOCOLO OBLIGATORIO DE 5 PUNTOS DE REFERENCIA ANTES DE IDENTIFICAR:",
+  "1. LEYENDA Y TEXTO: Transcribe mentalmente todas las palabras y letras visibles (ej. EURO CENT, ESPAÑA, PESETAS, REY DE ESPAÑA, LIBERTÉ, etc.). Si pone EURO CENT o € es un EURO, NUNCA pesetas.",
+  "2. CIFRA Y VALOR FACIAL: Lee el número grande del reverso (1, 2, 5, 10, 20, 50, 1, 2) y el diseño del globo terráqueo o mapa europeo.",
+  "3. AÑO Y MARCA DE CECA: Busca los 4 dígitos del año y el símbolo de ceca (M coronada = Madrid, estrellas con año, letra de ceca alemana A/D/F/G/J, etc.).",
+  "4. COLOR Y METAL APARENTE: Distingue acero cobrizo rojizo (1, 2, 5 céntimos), oro nórdico dorado (10, 20, 50 céntimos), bimetálica (1 y 2 euros), cuproníquel plateado o bronce-aluminio.",
+  "5. CANTO (3ª FOTO): Examina la tercera imagen para confirmar el tipo de canto real (Liso, Liso con ranura central, Festoneado, Estriado, Con leyenda incusa, etc.) y si tiene golpes.",
+  "VALORACIÓN PRUDENTE: Las monedas circuladas comunes (como 5 céntimos de euro modernos) valen su valor facial o entre 0.05 y 0.50 euros en grados circulados (MBC/EBC) y solo algo más en Sin Circular (SC). Sé realista.",
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "explicacion": "2 o 3 frases en español detallando leyenda leída, país, año, ceca, canto y estado"}',
 ].join("\n");
+
 
 const STAMP_INSTRUCTIONS = [
   "Eres un experto filatélico y tasador prudente. Analizas DOS fotografías de un sello postal: 1) Anverso (imagen y dentado) y 2) Reverso (goma y charnela).",
