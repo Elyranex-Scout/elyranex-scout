@@ -121,11 +121,12 @@ export default function ScannerScreen() {
       ctx.drawImage(video, sx, sy, side, side, 0, 0, 96, 96);
       const img = ctx.getImageData(0, 0, 96, 96).data;
 
-      let centerSharpness = 0;
-      let centerCount = 0;
-      let centerLuma = 0;
-      let borderLuma = 0;
-      let borderCount = 0;
+      let sharpTotal = 0;
+      let sharpCount = 0;
+      let bgLuma = 0;
+      let bgCount = 0;
+      const qLuma = new Array(4).fill(0);
+      const qCount = new Array(4).fill(0);
 
       for (let y = 2; y < 94; y += 2) {
         for (let x = 2; x < 94; x += 2) {
@@ -135,28 +136,31 @@ export default function ScannerScreen() {
           const dy = y - 48;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < 30) {
-            const iRight = (y * 96 + (x + 2)) * 4;
-            const iDown = ((y + 2) * 96 + x) * 4;
-            const lR = 0.299 * img[iRight] + 0.587 * img[iRight + 1] + 0.114 * img[iRight + 2];
-            const lD = 0.299 * img[iDown] + 0.587 * img[iDown + 1] + 0.114 * img[iDown + 2];
-            centerSharpness += Math.abs(luma - lR) + Math.abs(luma - lD);
-            centerLuma += luma;
-            centerCount++;
-          } else if (dist >= 38 && dist <= 47) {
-            borderLuma += luma;
-            borderCount++;
+          if (dist < 32) {
+            const iR = (y * 96 + (x + 2)) * 4;
+            const iD = ((y + 2) * 96 + x) * 4;
+            const lR = 0.299 * img[iR] + 0.587 * img[iR + 1] + 0.114 * img[iR + 2];
+            const lD = 0.299 * img[iD] + 0.587 * img[iD + 1] + 0.114 * img[iD + 2];
+            sharpTotal += Math.abs(luma - lR) + Math.abs(luma - lD);
+            sharpCount++;
+
+            if (dist >= 12) {
+              const q = dy < 0 ? (dx < 0 ? 0 : 1) : (dx < 0 ? 2 : 3);
+              qLuma[q] += luma;
+              qCount[q]++;
+            }
+          } else if (dist >= 41 && dist <= 47) {
+            bgLuma += luma;
+            bgCount++;
           }
         }
       }
 
-      const avgSharp = centerCount ? centerSharpness / centerCount : 0;
-      const avgCenter = centerCount ? centerLuma / centerCount : 0;
-      const avgBorder = borderCount ? borderLuma / borderCount : 0;
-      const contrast = Math.abs(avgCenter - avgBorder);
+      const avgSharp = sharpCount ? sharpTotal / sharpCount : 0;
+      const avgBg = bgCount ? bgLuma / bgCount : 0;
 
       if (cKind === "moneda" && cPhotos.length === 2) {
-        const edgeOk = avgSharp >= 9;
+        const edgeOk = avgSharp >= 9.5;
         setFrameQuality({
           ready: edgeOk,
           hint: edgeOk ? "¡Canto enfocado! Pulsa para analizar" : "Acerca el canto y toca para enfocar",
@@ -164,8 +168,18 @@ export default function ScannerScreen() {
         return;
       }
 
-      if (contrast < 10 && avgSharp < 11) {
+      const diffs = [
+        qCount[0] ? Math.abs(qLuma[0] / qCount[0] - avgBg) : 0,
+        qCount[1] ? Math.abs(qLuma[1] / qCount[1] - avgBg) : 0,
+        qCount[2] ? Math.abs(qLuma[2] / qCount[2] - avgBg) : 0,
+        qCount[3] ? Math.abs(qLuma[3] / qCount[3] - avgBg) : 0,
+      ];
+      const activeQuadrants = diffs.filter((d) => d >= 14).length;
+
+      if (activeQuadrants < 2 && avgSharp < 11) {
         setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
+      } else if (activeQuadrants < 4) {
+        setFrameQuality({ ready: false, hint: "Centra la pieza en la cruz (4 bordes)" });
       } else if (avgSharp < 10.5) {
         setFrameQuality({ ready: false, hint: "Desenfocada · Mueve un poco o toca el centro" });
       } else {
@@ -175,6 +189,7 @@ export default function ScannerScreen() {
 
     return () => clearInterval(timer);
   }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length]);
+
   const triggerRefocus = () => {
     if (Platform.OS !== "web") Vibration.vibrate(25);
     setFocusPulse(true);
