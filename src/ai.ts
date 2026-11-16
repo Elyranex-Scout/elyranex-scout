@@ -2,11 +2,11 @@
 import { storage } from "@/src/utils/storage";
 
 const BASE = "https://groq.com";
-const MODEL_KEY = "groq_model";
-const PRIMARY = "qwen/qwen3.8-27b";
-const SECONDARY = "meta-models/muse-spark-open";
-const TIMEOUT_MS = 20000;
-const LIST_TIMEOUT_MS = 8000;
+const MODEL_KEY = "groq_model_v2";
+const PRIMARY = "meta-llama/llama-4-scout-17b-16e-instruct";
+const SECONDARY = "meta-llama/llama-4-maverick-17b-128e-instruct";
+const TIMEOUT_MS = 25000;
+const LIST_TIMEOUT_MS = 10000;
 
 export const CATEGORIES = ["Coleccionismo", "Electrónica", "Ropa", "Hogar", "Juguetes", "Otros"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -24,30 +24,80 @@ export type Analysis = {
   explicacion: string;
 };
 
-const INSTRUCTIONS = `Eres un tasador experto y PRUDENTE para revendedores de mercadillos y tiendas de segunda mano en España. Tu prioridad es no hacer perder dinero al comprador: ante la duda, tasa a la baja.
+export type CoinAnalysis = {
+  tipo_pieza: "moneda";
+  pais: string;
+  denominacion: string;
+  anio: string;
+  ceca: string;
+  metal: string;
+  tirada_estimada: string;
+  rareza: "Muy común" | "Común" | "Escasa" | "Rara" | "Muy rara";
+  tipo_canto: string;
+  especificaciones: {
+    peso_g: string;
+    diametro_mm: string;
+    grosor_mm: string;
+  };
+  grado_estimado: "SC" | "EBC" | "MBC" | "BC";
+  precios_por_grado: {
+    SC: [number, number];
+    EBC: [number, number];
+    MBC: [number, number];
+    BC: [number, number];
+  };
+  explicacion: string;
+};
 
-PASO 1 · LECTURA OBLIGATORIA DE TEXTO Y LOGOTIPOS:
-- Antes de nada, lee el texto, logotipo o marca exacta impresa en el objeto (esfera del reloj, etiqueta, hebilla, suela, carcasa, caja, cartucho, carta...). La marca es la que está ESCRITA, no la que sugiere el diseño.
-- En relojes lee la esfera: si pone "Poedagar", "Pagani Design", "Curren", "Naviforce", "Benyar", "Casio", etc., ese es el reloj. NUNCA lo tases como "Rolex", "Panerai", "Omega", "Patek" u otra marca de lujo solo porque se le parezca.
-- Si no se lee ninguna marca, indica "Sin marca visible" y tásalo como genérico.
+export type StampAnalysis = {
+  tipo_pieza: "sello";
+  pais: string;
+  serie_tematica: string;
+  anio: string;
+  valor_facial: string;
+  color_impresion: string;
+  numero_catalogo: string;
+  rareza: "Muy común" | "Común" | "Escaso" | "Raro" | "Muy raro";
+  evaluacion_dentado: string;
+  estado_estimado: "MNH (**)" | "MH (*)" | "Sin goma" | "Usado (O)";
+  precios_por_estado: {
+    "MNH (**)": [number, number];
+    "MH (*)": [number, number];
+    "Sin goma": [number, number];
+    "Usado (O)": [number, number];
+  };
+  explicacion: string;
+};
 
-PASO 2 · PRUDENCIA EN LUJO:
-- Si un reloj, bolso, gafas, joya o prenda PARECE de lujo pero es un homenaje/réplica, o no hay caja, certificado ni pruebas claras de autenticidad, tásalo como homenaje/sin autenticar: "ver" entre 10 y 20 €, demanda "Baja" y dilo en la explicación ("posible homenaje/réplica, sin autenticar").
-- Solo da valor de lujo si la marca de lujo se lee claramente Y los detalles (grabados, acabados, número de serie, caja/papeles) son coherentes con un original.
+const INSTRUCTIONS = [
+  "Eres un tasador experto y PRUDENTE para revendedores de mercadillos, Vinted y Wallapop en España. Tu prioridad es no hacer perder dinero al comprador: ante la duda, tasa a la baja.",
+  "PASO 1 · LECTURA OBLIGATORIA DE TEXTO Y LOGOTIPOS: Lee el texto, logotipo o marca exacta impresa en el objeto. La marca es la que está ESCRITA, no la que sugiere el diseño. En relojes lee la esfera: si pone Poedagar, Pagani Design, Curren, Naviforce, Benyar, Casio, ese es el reloj; NUNCA lo tases como Rolex, Omega o similar solo por parecerse. Si no se lee ninguna marca, indica Sin marca visible.",
+  "PASO 2 · PRUDENCIA EN LUJO: Si un reloj, bolso, gafas, joya o prenda PARECE de lujo pero es un homenaje/réplica o no hay pruebas claras de autenticidad, tásalo entre 10 y 20 euros con demanda Baja.",
+  "PASO 3 · TASACIÓN GENERAL: Clasifícalo en Coleccionismo, Electrónica, Ropa, Hogar, Juguetes u Otros. Estima su Precio Nuevo (€), su Valor Estimado de Reventa (VER) real en Wallapop, Vinted o eBay (€) según su estado, y su demanda (Alta, Media o Baja).",
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"nombre": string, "marca": string, "modelo_edicion": string, "estado": "Nuevo"|"Muy bueno"|"Bueno"|"Usado"|"Dañado", "categoria": "Coleccionismo"|"Electrónica"|"Ropa"|"Hogar"|"Juguetes"|"Otros", "precio_nuevo": número, "ver": número, "demanda": "Alta"|"Media"|"Baja", "explicacion": "2 o 3 frases cortas en español (máx. 300 caracteres)"}',
+].join("\n");
 
-PASO 3 · PROTOCOLO ESTRICTO PARA MONEDAS (NUMISMÁTICA):
-- Si es una moneda, extrae obligatoriamente: país, valor facial, año exacto acuñado, marca de ceca (letras o estrellas), metal aparente (cobre, níquel, latón, plata, oro) y grado de conservación visual (circulada/gastada o sin circular/brillo original). Pon país, valor facial y año en "nombre"; ceca, metal y conservación en "modelo_edicion"; conservación también en "estado".
-- Sé ULTRACONSERVADOR: la inmensa mayoría de monedas comunes circuladas (pesetas habituales, euros normales, monedas extranjeras modernas) valen entre 0,50 € y 3 € → "ver" entre 0.5 y 3 y demanda "Baja".
-- Solo da un "ver" alto y demanda "Alta" o "Media" si identificas claramente: plata u oro, una fecha clave escasa, un error de acuñación evidente o una conmemorativa con valor real en el mercado numismático. En ese caso explica POR QUÉ es valiosa (metal, año, tirada o error).
+const COIN_INSTRUCTIONS = [
+  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías de la misma moneda: 1) Anverso (cara), 2) Reverso (cruz) y 3) Canto (borde/perfil).",
+  "INSTRUCCIONES:",
+  "- Identifica país, denominación (valor facial), año exacto acuñado, marca de ceca (letras, estrellas o símbolos) y metal/aleación.",
+  "- Examina atentamente la TERCERA imagen para describir el tipo de canto exacto (Estriado, Liso, Estriado discontinuo, Con leyenda incusa, Seguridad, etc.) y si tiene golpes en el borde.",
+  "- Estima la tirada aproximada y clasifica su rareza en: Muy común, Común, Escasa, Rara o Muy rara.",
+  "- Indica sus datos físicos estándar de catálogo (peso en gramos, diámetro en mm, grosor en mm).",
+  "- Evalúa el grado de conservación visual de las fotos (SC Sin Circular, EBC Excelente Buena Conservación, MBC Muy Buena Conservación, BC Buena Conservación).",
+  "- Da una horquilla realista y PRUDENTE de precios de mercado en euros [min, max] para cada grado. Las monedas circuladas comunes valen entre 0.20 y 3 euros.",
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "explicacion": "2 o 3 frases en español detallando anverso, reverso y canto"}',
+].join("\n");
 
-PASO 4 · TASACIÓN GENERAL:
-- Si es un cromo de Pokémon, carta coleccionable o videojuego, lee número de serie/edición y evalúa el estado visual.
-- Clasifícalo en: Coleccionismo, Electrónica, Ropa, Hogar, Juguetes u Otros (monedas → Coleccionismo).
-- Estima su "Precio Nuevo" (€), su "Valor Estimado de Reventa (VER)" real en Wallapop, Vinted, eBay o Todocoleccion (€) según su estado, y su demanda ("Alta", "Media" o "Baja"). Si no puedes identificarlo con seguridad, tasa a la baja y dilo.
-
-FORMATO: responde SOLO con un objeto JSON estricto con exactamente estas claves:
-{"nombre": string, "marca": string (la marca LEÍDA, o "Sin marca visible"), "modelo_edicion": string, "estado": "Nuevo"|"Muy bueno"|"Bueno"|"Usado"|"Dañado"|"Sin circular"|"Circulada", "categoria": "Coleccionismo"|"Electrónica"|"Ropa"|"Hogar"|"Juguetes"|"Otros", "precio_nuevo": número en euros, "ver": número en euros, "demanda": "Alta"|"Media"|"Baja", "explicacion": 2 o 3 frases cortas y completas en español (máx. 300 caracteres) diciendo qué marca/inscripción has leído y por qué vale lo que vale}`;
-
+const STAMP_INSTRUCTIONS = [
+  "Eres un experto filatélico y tasador prudente. Analizas DOS fotografías de un sello postal: 1) Anverso (imagen y dentado) y 2) Reverso (goma y charnela).",
+  "INSTRUCCIONES:",
+  "- Identifica país emisor, serie o temática, año de emisión, valor facial, color de impresión y número aproximado de catálogo (Edifil/Yvert/Scott si es reconocible).",
+  "- Evalúa la calidad del dentado y centrado en la primera foto (Completo y bien centrado, Descentrado, Diente corto/defectuoso, Imperforado, etc.).",
+  "- Evalúa el estado en ambas fotos: MNH (**) (nuevo sin charnela con goma original), MH (*) (nuevo con huella de fijasellos), Sin goma, o Usado (O) (con matasellos).",
+  "- Da horquillas realistas y PRUDENTES de valor en euros [min, max] para cada estado.",
+  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "sello", "pais": string, "serie_tematica": string, "anio": string, "valor_facial": string, "color_impresion": string, "numero_catalogo": string, "rareza": "Muy común"|"Común"|"Escaso"|"Raro"|"Muy raro", "evaluacion_dentado": string, "estado_estimado": "MNH (**)"|"MH (*)"|"Sin goma"|"Usado (O)", "precios_por_estado": {"MNH (**)": [number, number], "MH (*)": [number, number], "Sin goma": [number, number], "Usado (O)": [number, number]}, "explicacion": "2 o 3 frases en español detallando emisión, centrado, matasellos y reverso"}',
+].join("\n");
 async function timedFetch(url: string, init: RequestInit, ms: number) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -74,18 +124,20 @@ const errorText = (status: number, raw: string) => {
   return `${data?.error?.message ?? (raw.slice(0, 160) || "error desconocido")} (HTTP ${status})`;
 };
 
-// GET /models → pick the preferred vision model the key can use.
 async function detectModel(apiKey: string): Promise<string> {
-  const { status, raw } = await timedFetch(`${BASE}/models`, { headers: { Authorization: `Bearer ${apiKey}` } }, LIST_TIMEOUT_MS);
+  const { status, raw } = await timedFetch(
+    `${BASE}/models`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+    LIST_TIMEOUT_MS
+  );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
   const ids: string[] = ((parseJson(raw)?.data ?? []) as { id: string; active?: boolean }[])
     .filter((m) => m.active !== false)
     .map((m) => m.id);
   if (ids.includes(PRIMARY)) return PRIMARY;
   if (ids.includes(SECONDARY)) return SECONDARY;
-  const vision = ids.find((id) => /(qwen|muse|scout|vision)/i.test(id));
-  if (!vision) throw new Error("Tu clave no tiene modelos de visión de Groq disponibles.");
-  return vision;
+  const vision = ids.find((id) => /(llama-4|scout|maverick|vision)/i.test(id));
+  return vision ?? PRIMARY;
 }
 
 async function candidates(): Promise<string[]> {
@@ -104,13 +156,12 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
-        temperature: 0.2,
-        max_completion_tokens: json ? 1000 : 5,
-        ...(json ? { temperature: 0.1 } : {}),
+        temperature: json ? 0.1 : 0.2,
+        max_completion_tokens: json ? 1100 : 10,
         ...(json ? { response_format: { type: "json_object" } } : {}),
       }),
     },
-    TIMEOUT_MS,
+    TIMEOUT_MS
   );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
   const text: string | undefined = parseJson(raw)?.choices?.[0]?.message?.content;
@@ -118,7 +169,6 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
   return text;
 }
 
-// Saved model first, then the other vision models. Both fail → exact errors.
 async function call(apiKey: string, content: unknown, json: boolean, models?: string[]) {
   const errors: string[] = [];
   for (const model of models ?? (await candidates())) {
@@ -135,8 +185,15 @@ async function call(apiKey: string, content: unknown, json: boolean, models?: st
   throw new Error(`No se pudo conectar con Groq.\n${errors.join("\n")}`);
 }
 
+const cleanJsonText = (text: string) => {
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last > first) return text.slice(first, last + 1);
+  return text.trim();
+};
+
 function parse(text: string): Analysis {
-  const a = JSON.parse(text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, "")) as Analysis;
+  const a = JSON.parse(cleanJsonText(text)) as Analysis;
   return {
     nombre: String(a.nombre ?? "Artículo"),
     marca: String(a.marca ?? ""),
@@ -150,48 +207,137 @@ function parse(text: string): Analysis {
   };
 }
 
-export async function analyzePhoto(apiKey: string, imageBase64: string, mimeType = "image/jpeg") {
-  const prefix = imageBase64.match(/^data:(image\/[\w.+-]+);base64,/);
-  const mime = prefix ? (prefix[1] === "image/jpg" ? "image/jpeg" : prefix[1]) : mimeType;
-  const data = imageBase64.replace(/^data:image\/[\w.+-]+;base64,/, "").replace(/\s/g, "");
+const toDataUrl = (b64: string, mime = "image/jpeg") =>
+  b64.startsWith("data:") ? b64 : `data:${mime};base64,${b64}`;
+
+export async function testAiKey(apiKey: string): Promise<string> {
+  const model = await detectModel(apiKey);
+  const res = await call(apiKey, "Responde solo OK", false, [model]);
+  return res.model;
+}
+
+export async function analyzePhoto(apiKey: string, imageBase64: string, mimeType = "image/jpeg"): Promise<Analysis> {
   const { text } = await call(
     apiKey,
     [
       { type: "text", text: INSTRUCTIONS },
-      { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } },
+      { type: "image_url", image_url: { url: toDataUrl(imageBase64, mimeType) } },
     ],
-    true,
+    true
   );
   return parse(text);
 }
 
-export async function analyzeBarcode(apiKey: string, code: string, type: string) {
+export async function analyzeBarcode(apiKey: string, code: string, type: string): Promise<Analysis> {
   const { text } = await call(
     apiKey,
-    `${INSTRUCTIONS}\n\nNo hay foto: identifica el producto a partir de este código de barras (${type}): ${code}. Asume estado "Usado - Bueno".`,
-    true,
+    `${INSTRUCTIONS}\n\nIdentifica y tasa este artículo a partir de su código de barras (${type}): ${code}`,
+    true
   );
   return parse(text);
 }
 
-export async function analyzeText(apiKey: string, description: string) {
+export async function analyzeText(apiKey: string, description: string): Promise<Analysis> {
   const { text } = await call(
     apiKey,
-    `${INSTRUCTIONS}\n\nNo hay foto ni código de barras: tasa el artículo descrito manualmente por el usuario: "${description.trim()}". Si no especifica el estado en su descripción, asume "Bueno".`,
-    true,
+    `${INSTRUCTIONS}\n\nIdentifica y tasa este artículo descrito por el usuario: ${description}`,
+    true
   );
   return parse(text);
 }
 
-// Detects the vision model (GET /models), sends a test message and saves the working model.
-export async function testConnection(apiKey: string): Promise<string> {
-  let first = PRIMARY;
-  try {
-    first = await detectModel(apiKey);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/HTTP 401/.test(msg)) throw new Error(`API Key de Groq no válida: ${msg}`);
+const normRange = (arr: unknown): [number, number] => {
+  if (Array.isArray(arr) && arr.length >= 2) {
+    const a = Math.max(0, Number(arr[0]) || 0);
+    const b = Math.max(a, Number(arr[1]) || 0);
+    return [a, b];
   }
-  const { model } = await call(apiKey, "Responde solo: OK", false, [...new Set([first, PRIMARY, SECONDARY])]);
-  return model;
+  return;
+};
+
+export async function analyzeCoin(
+  apiKey: string,
+  photos: { anverso: string; reverso: string; canto: string }
+): Promise<CoinAnalysis> {
+  const { text } = await call(
+    apiKey,
+    [
+      { type: "text", text: COIN_INSTRUCTIONS },
+      { type: "text", text: "Imagen 1 — ANVERSO (Cara):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.anverso) } },
+      { type: "text", text: "Imagen 2 — REVERSO (Cruz):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.reverso) } },
+      { type: "text", text: "Imagen 3 — CANTO (Borde / Perfil):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.canto) } },
+    ],
+    true
+  );
+  const raw = JSON.parse(cleanJsonText(text)) as CoinAnalysis;
+  const grades = ["SC", "EBC", "MBC", "BC"] as const;
+  return {
+    tipo_pieza: "moneda",
+    pais: String(raw.pais ?? "Desconocido"),
+    denominacion: String(raw.denominacion ?? "Moneda"),
+    anio: String(raw.anio ?? "S/F"),
+    ceca: String(raw.ceca ?? "Sin marca visible"),
+    metal: String(raw.metal ?? "Desconocido"),
+    tirada_estimada: String(raw.tirada_estimada ?? "No disponible"),
+    rareza: (["Muy común", "Común", "Escasa", "Rara", "Muy rara"] as const).includes(raw.rareza)
+      ? raw.rareza
+      : "Común",
+    tipo_canto: String(raw.tipo_canto ?? "No apreciable"),
+    especificaciones: {
+      peso_g: String(raw.especificaciones?.peso_g ?? "-"),
+      diametro_mm: String(raw.especificaciones?.diametro_mm ?? "-"),
+      grosor_mm: String(raw.especificaciones?.grosor_mm ?? "-"),
+    },
+    grado_estimado: grades.includes(raw.grado_estimado) ? raw.grado_estimado : "MBC",
+    precios_por_grado: {
+      SC: normRange(raw.precios_por_grado?.SC),
+      EBC: normRange(raw.precios_por_grado?.EBC),
+      MBC: normRange(raw.precios_por_grado?.MBC),
+      BC: normRange(raw.precios_por_grado?.BC),
+    },
+    explicacion: String(raw.explicacion ?? ""),
+  };
+}
+
+export async function analyzeStamp(
+  apiKey: string,
+  photos: { anverso: string; reverso: string }
+): Promise<StampAnalysis> {
+  const { text } = await call(
+    apiKey,
+    [
+      { type: "text", text: STAMP_INSTRUCTIONS },
+      { type: "text", text: "Imagen 1 — ANVERSO (Diseño y dentado):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.anverso) } },
+      { type: "text", text: "Imagen 2 — REVERSO (Goma y charnela):" },
+      { type: "image_url", image_url: { url: toDataUrl(photos.reverso) } },
+    ],
+    true
+  );
+  const raw = JSON.parse(cleanJsonText(text)) as StampAnalysis;
+  const states = ["MNH (**)", "MH (*)", "Sin goma", "Usado (O)"] as const;
+  return {
+    tipo_pieza: "sello",
+    pais: String(raw.pais ?? "Desconocido"),
+    serie_tematica: String(raw.serie_tematica ?? "Sello postal"),
+    anio: String(raw.anio ?? "S/F"),
+    valor_facial: String(raw.valor_facial ?? "-"),
+    color_impresion: String(raw.color_impresion ?? "-"),
+    numero_catalogo: String(raw.numero_catalogo ?? "No identificado"),
+    rareza: (["Muy común", "Común", "Escaso", "Raro", "Muy raro"] as const).includes(raw.rareza)
+      ? raw.rareza
+      : "Común",
+    evaluacion_dentado: String(raw.evaluacion_dentado ?? "No apreciable"),
+    estado_estimado: states.includes(raw.estado_estimado) ? raw.estado_estimado : "Usado (O)",
+    precios_por_estado: {
+      "MNH (**)": normRange(raw.precios_por_estado?.["MNH (**)"]),
+      "MH (*)": normRange(raw.precios_por_estado?.["MH (*)"]),
+      "Sin goma": normRange(raw.precios_por_estado?.["Sin goma"]),
+      "Usado (O)": normRange(raw.precios_por_estado?.["Usado (O)"]),
+    },
+    explicacion: String(raw.explicacion ?? ""),
+  };
 }
