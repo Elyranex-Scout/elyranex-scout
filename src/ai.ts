@@ -129,7 +129,7 @@ const errorText = (status: number, raw: string) => {
 async function detectModel(apiKey: string): Promise<string> {
   const { status, raw } = await timedFetch(
     `${BASE}/models`,
-    { headers: { Authorization: `Bearer ${apiKey.trim()}
+    { headers: { Authorization: `Bearer ${apiKey.trim()}` } },
     LIST_TIMEOUT_MS
   );
   if (status < 200 || status >= 300) throw new Error(errorText(status, raw));
