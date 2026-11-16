@@ -99,31 +99,6 @@ const INSTRUCTIONS = [
      'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"nombre": string, "marca": string, "modelo_edicion": string, "estado": "Nuevo"|"Muy bueno"|"Bueno"|"Usado"|"Dañado", "categoria": "Coleccionismo"|"Electrónica"|"Ropa"|"Hogar"|"Juguetes"|"Otros", "precio_nuevo": número, "ver": número, "demanda": "Alta"|"Media"|"Baja", "explicacion": "2 o 3 frases cortas en español (máx. 300 caracteres)"}',
 ].join("\n");
 
-const COIN_INSTRUCTIONS = [
-  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías recortadas en alta definición de la misma moneda: 1) ANVERSO (Cara nacional), 2) REVERSO (Cara común / valor facial) y 3) CANTO (Borde / perfil).",
-  "PROTOCOLO OBLIGATORIO DE 5 PUNTOS DE REFERENCIA ANTES DE IDENTIFICAR:",
-  "1. LEYENDA Y TEXTO: Transcribe mentalmente todas las palabras y letras visibles (ej. EURO CENT, ESPAÑA, PESETAS, REY DE ESPAÑA, LIBERTÉ, etc.). Si pone EURO CENT o € es un EURO, NUNCA pesetas.",
-  "2. CIFRA Y VALOR FACIAL: Lee el número grande del reverso (1, 2, 5, 10, 20, 50, 1, 2) y el diseño del globo terráqueo o mapa europeo.",
-  "3. AÑO Y MARCA DE CECA: Busca los 4 dígitos del año y el símbolo de ceca (M coronada = Madrid, estrellas con año, letra de ceca alemana A/D/F/G/J, etc.).",
-  "4. COLOR Y METAL APARENTE: Distingue acero cobrizo rojizo (1, 2, 5 céntimos), oro nórdico dorado (10, 20, 50 céntimos), bimetálica (1 y 2 euros), cuproníquel plateado o bronce-aluminio.",
-  "5. CANTO (3ª FOTO): Examina la tercera imagen para confirmar el tipo de canto real (Liso, Liso con ranura central, Festoneado, Estriado, Con leyenda incusa, etc.) y si tiene golpes.",
-  "VALORACIÓN PRUDENTE: Las monedas circuladas comunes (como 5 céntimos de euro modernos) valen su valor facial o entre 0.05 y 0.50 euros en grados circulados (MBC/EBC) y solo algo más en Sin Circular (SC). Sé realista.",
-  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "rotacion_anverso": grados en sentido horario (-180 a 180) necesarios para que la parte superior de la cara/escudo quede arriba a las 12h (ej: si está tumbada hacia la izquierda pon 90; si está tumbada hacia la derecha pon -90; si está boca abajo pon 180), "rotacion_reverso": grados en sentido horario (-180 a 180) necesarios para que la cifra del valor facial quede recta verticalmente a las 12h, "explicacion": "2 o 3 frases en español detallando leyenda leída, país, año, ceca, canto y estado"}',
-].join("\n");
-
-
-const COIN_INSTRUCTIONS = [
-  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías recortadas en alta definición de la misma moneda: 1) ANVERSO (Cara nacional), 2) REVERSO (Cara común / valor facial) y 3) CANTO (Borde / perfil).",
-  "PROTOCOLO OBLIGATORIO DE 5 PUNTOS DE REFERENCIA ANTES DE IDENTIFICAR:",
-  "1. LEYENDA Y TEXTO: Transcribe mentalmente todas las palabras y letras visibles (ej. EURO CENT, ESPAÑA, PESETAS, REY DE ESPAÑA, LIBERTÉ, etc.). Si pone EURO CENT o € es un EURO, NUNCA pesetas.",
-  "2. CIFRA Y VALOR FACIAL: Lee el número grande del reverso (1, 2, 5, 10, 20, 50, 1, 2) y el diseño del globo terráqueo o mapa europeo.",
-  "3. AÑO Y MARCA DE CECA: Busca los 4 dígitos del año y el símbolo de ceca (M coronada = Madrid, estrellas con año, letra de ceca alemana A/D/F/G/J, etc.).",
-  "4. COLOR Y METAL APARENTE: Distingue acero cobrizo rojizo (1, 2, 5 céntimos), oro nórdico dorado (10, 20, 50 céntimos), bimetálica (1 y 2 euros), cuproníquel plateado o bronce-aluminio.",
-  "5. CANTO (3ª FOTO): Examina la tercera imagen para confirmar el tipo de canto real (Liso, Liso con ranura central, Festoneado, Estriado, Con leyenda incusa, etc.) y si tiene golpes.",
-  "VALORACIÓN PRUDENTE: Las monedas circuladas comunes (como 5 céntimos de euro modernos) valen su valor facial o entre 0.05 y 0.50 euros en grados circulados (MBC/EBC) y solo algo más en Sin Circular (SC). Sé realista.",
-  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "rotacion_anverso": grados en sentido horario (-180 a 180) necesarios para que la parte superior de la cara/escudo quede arriba a las 12h (ej: si está tumbada hacia la izquierda pon 90; si está tumbada hacia la derecha pon -90; si está boca abajo pon 180), "rotacion_reverso": grados en sentido horario (-180 a 180) necesarios para que la cifra del valor facial quede recta verticalmente a las 12h, "explicacion": "2 o 3 frases en español detallando leyenda leída, país, año, ceca, canto y estado"}',
-].join("\n");
-
 
 const COIN_INSTRUCTIONS = [
   "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías recortadas en alta definición de la misma moneda: 1) ANVERSO (Cara nacional), 2) REVERSO (Cara común / valor facial) y 3) CANTO (Borde / perfil).",
