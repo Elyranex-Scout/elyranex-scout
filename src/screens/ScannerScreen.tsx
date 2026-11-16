@@ -5,7 +5,6 @@ import { File } from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useContext, useRef, useState } from "react";
 import { ActivityIndicator, Keyboard, Platform, Pressable, Text, TextInput, Vibration, View } from "react-native";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -314,7 +313,7 @@ if (phase === "result" && analysis && verdict) {
             })}
           </View>
 
-          <KeyboardStickyView
+          <View
             offset={{ closed: 0, opened: usesNativeTabs ? insets.bottom : tabBarHeight }}
             style={[styles.panel, { paddingBottom: bottomChrome + 10 }]}
           >
@@ -374,7 +373,7 @@ if (phase === "result" && analysis && verdict) {
                 </View>
               )}
             </View>
-          </KeyboardStickyView>
+          </View>
 
           {phase === "analyzing" || phase === "error" ? (
             <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay} testID={`scanner-${phase}`}>
