@@ -68,7 +68,9 @@ export default function ScannerScreen() {
   const [afOn, setAfOn] = useState(true);
   const [frameQuality, setFrameQuality] = useState<FrameQuality>({ ready: false, hint: "Coloca la pieza dentro del aro" });
   const [scanStep, setScanStep] = useState(0);
-
+  const [autoSnap, setAutoSnap] = useState(true);
+  const greenHoldUntil = useRef(0);
+  const greenStreak = useRef(0);
   const [errorMsg, setErrorMsg] = useState("");
   const [needsKey, setNeedsKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -103,12 +105,16 @@ export default function ScannerScreen() {
       return;
     }
 
+    greenHoldUntil.current = 0;
+    greenStreak.current = 0;
+
     const canvas = document.createElement("canvas");
     canvas.width = 96;
     canvas.height = 96;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const timer = setInterval(() => {
+      if (busy.current) return;
       const video = document.querySelector("video") as HTMLVideoElement | null;
       if (!video || video.readyState < 2 || !ctx) return;
 
@@ -144,12 +150,12 @@ export default function ScannerScreen() {
             sharpTotal += Math.abs(luma - lR) + Math.abs(luma - lD);
             sharpCount++;
 
-            if (dist >= 12) {
+            if (dist >= 10) {
               const q = dy < 0 ? (dx < 0 ? 0 : 1) : (dx < 0 ? 2 : 3);
               qLuma[q] += luma;
               qCount[q]++;
             }
-          } else if (dist >= 41 && dist <= 47) {
+          } else if (dist >= 40 && dist <= 47) {
             bgLuma += luma;
             bgCount++;
           }
@@ -158,37 +164,58 @@ export default function ScannerScreen() {
 
       const avgSharp = sharpCount ? sharpTotal / sharpCount : 0;
       const avgBg = bgCount ? bgLuma / bgCount : 0;
+      const now = Date.now();
 
       if (cKind === "moneda" && cPhotos.length === 2) {
-        const edgeOk = avgSharp >= 9.5;
+        const edgeOk = avgSharp >= 8.5 || now < greenHoldUntil.current;
+        if (avgSharp >= 8.5) greenHoldUntil.current = now + 1200;
         setFrameQuality({
           ready: edgeOk,
-          hint: edgeOk ? "¡Canto enfocado! Pulsa para analizar" : "Acerca el canto y toca para enfocar",
+          hint: edgeOk ? "¡Canto estable! Listo para analizar" : "Acerca el canto y toca para enfocar",
         });
         return;
       }
 
       const diffs = [
-        qCount[0] ? Math.abs(qLuma[0] / qCount[0] - avgBg) : 0,
-        qCount[1] ? Math.abs(qLuma[1] / qCount[1] - avgBg) : 0,
-        qCount[2] ? Math.abs(qLuma[2] / qCount[2] - avgBg) : 0,
-        qCount[3] ? Math.abs(qLuma[3] / qCount[3] - avgBg) : 0,
+        qCount.at(0) ? Math.abs(qLuma.at(0) / qCount.at(0) - avgBg) : 0,
+        qCount.at(1) ? Math.abs(qLuma.at(1) / qCount.at(1) - avgBg) : 0,
+        qCount.at(2) ? Math.abs(qLuma.at(2) / qCount.at(2) - avgBg) : 0,
+        qCount.at(3) ? Math.abs(qLuma.at(3) / qCount.at(3) - avgBg) : 0,
       ];
-      const activeQuadrants = diffs.filter((d) => d >= 14).length;
+      const activeQuadrants = diffs.filter((d) => d >= 11).length;
+      const isGoodNow = activeQuadrants >= 3 && avgSharp >= 9.0;
 
-      if (activeQuadrants < 2 && avgSharp < 11) {
-        setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
-      } else if (activeQuadrants < 4) {
-        setFrameQuality({ ready: false, hint: "Centra la pieza en la cruz (4 bordes)" });
-      } else if (avgSharp < 10.5) {
-        setFrameQuality({ ready: false, hint: "Desenfocada · Mueve un poco o toca el centro" });
-      } else {
-        setFrameQuality({ ready: true, hint: "¡Centrada y nítida! Lista para capturar" });
+      if (isGoodNow) {
+        greenHoldUntil.current = now + 1200;
+        greenStreak.current += 1;
+      } else if (now >= greenHoldUntil.current) {
+        greenStreak.current = 0;
       }
-    }, 300);
+
+      const stabilized = isGoodNow || now < greenHoldUntil.current;
+
+      if (stabilized) {
+        setFrameQuality({
+          ready: true,
+          hint: autoSnap ? "Estabilizada · Capturando automáticamente..." : "¡Estabilizada! Pulsa para capturar",
+        });
+        if (autoSnap && greenStreak.current >= 4) {
+          greenStreak.current = 0;
+          greenHoldUntil.current = 0;
+          takePhoto();
+        }
+      } else if (activeQuadrants < 2 && avgSharp < 10) {
+        setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
+      } else if (activeQuadrants < 3) {
+        setFrameQuality({ ready: false, hint: "Centra la pieza en el aro" });
+      } else {
+        setFrameQuality({ ready: false, hint: "Enfocando · Mantén firme 1 segundo" });
+      }
+    }, 280);
 
     return () => clearInterval(timer);
-  }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length]);
+  }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length, autoSnap]);
+
 
   const triggerRefocus = () => {
     if (Platform.OS !== "web") Vibration.vibrate(25);
@@ -645,7 +672,13 @@ export default function ScannerScreen() {
                 </Pressable>
                 <Pressable onPress={() => setTorch((t) => !t)} style={[styles.toolBtn, torch && styles.toolBtnActive]}>
                   <Icon name={torch ? "flashlight" : "flashlight-off"} size={16} color={torch ? colors.onBrandPrimary : "#FFF"} />
-                </Pressable>
+                </Pressable>                {isCollectible ? (
+                  <Pressable onPress={() => setAutoSnap((a) => !a)} style={[styles.toolBtn, autoSnap && styles.toolBtnActive]}>
+                    <Icon name="camera-iris" size={16} color={autoSnap ? colors.onBrandPrimary : "#FFF"} />
+                    <Text style={[styles.toolText, autoSnap && { color: colors.onBrandPrimary }]}>Auto</Text>
+                  </Pressable>
+                ) : null}
+
                 {isCollectible && cKind === "sello" ? (
                   <Pressable onPress={() => setStampHorizontal((h) => !h)} style={styles.toolBtn}>
                     <Icon name="camera-retake" size={16} color="#FFF" />
