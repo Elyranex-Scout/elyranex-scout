@@ -15,7 +15,7 @@ import { ResultView } from "@/src/components/scanner/ResultView";
 import { analyzeBarcode, analyzeCard, analyzeCoin, analyzePhoto, analyzeStamp, analyzeText, type Analysis } from "@/src/ai";
 import { createItem, newClientId, type CollectiblePhotos, type CollectionDest, type Origin } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
-import { compressPhoto, cropCollectibleHD, straightenPhoto } from "@/src/photo";
+import { compressPhoto, cropCollectibleHD, straightenCoinByClock } from "@/src/photo";
 import { DEFAULT_MIN_PROFIT, loadAiKey, loadMinProfit } from "@/src/settings";
 import { makeStyles, useTheme } from "@/src/theme";
 import { computeVerdict, type Verdict } from "@/src/verdict";
@@ -252,8 +252,8 @@ export default function ScannerScreen() {
     try {
       const res = await job(key);
       if (res.tipo_pieza === "moneda" && photosToAnalyze.length >= 2) {
-        const straightAnv = await straightenPhoto(photosToAnalyze.at(0)!, res.rotacion_anverso ?? 0);
-        const straightRev = await straightenPhoto(photosToAnalyze.at(1)!, res.rotacion_reverso ?? 0);
+        const straightAnv = await straightenCoinByClock(photosToAnalyze.at(0)!, res.rotacion_anverso ?? 12);
+        const straightRev = await straightenCoinByClock(photosToAnalyze.at(1)!, res.rotacion_reverso ?? 12);
         const updated = [straightAnv, straightRev, ...(photosToAnalyze.at(2) ? [photosToAnalyze.at(2)!] : [])];
         setCPhotos(updated);
       }
