@@ -129,7 +129,12 @@ export function CollectibleResultView({ result, photos, asking, saving, onDiscar
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
           {photoSlots.map((slot) => (
             <View key={slot.label} style={styles.photoCard}>
-              <Image source={{ uri: slot.uri }} style={styles.photoImg} resizeMode="cover" />
+              <Image
+  source={{ uri: slot.uri }}
+  style={styles.photoImg}
+  resizeMode={slot.label === "Canto" ? "contain" : "cover"}
+/>
+
               <Text style={styles.photoLabel}>{slot.label}</Text>
             </View>
           ))}
