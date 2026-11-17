@@ -27,18 +27,34 @@ export async function compressPhoto(uri: string): Promise<string> {
   throw new Error("No se pudo comprimir la foto");
 }
 
-// Rotates a photo by the given degrees so coins, stamps and cards sit straight (0 deg) in the album.
-export async function straightenPhoto(uri: string, degrees: number): Promise<string> {
-  const cleanDeg = Math.round(Number(degrees) || 0);
-  if (Math.abs(cleanDeg) < 3 || Math.abs(cleanDeg) > 180) return uri;
+// Rotates a coin photo to 12 o'clock based on detected clock position (1..12) and re-centers the square crop.
+export async function straightenCoinByClock(uri: string, clockHour: number): Promise<string> {
+  const h = Math.round(Number(clockHour) || 12);
+  if (h < 1 || h > 11) return uri;
+  const degrees = ((12 - h) * 30) % 360;
+  if (degrees === 0) return uri;
   try {
-    const ctx = ImageManipulator.manipulate(uri);
-    ctx.rotate(cleanDeg);
-    const ref = await ctx.renderAsync();
-    const out = await ref.saveAsync({ compress: 0.9, format: SaveFormat.JPEG, base64: true });
-    if (Platform.OS !== "web" && out.uri.startsWith("file:")) {
+    const rotCtx = ImageManipulator.manipulate(uri);
+    rotCtx.rotate(degrees);
+    const rotRef = await rotCtx.renderAsync();
+    const rw = rotRef.width || 640;
+    const rh = rotRef.height || 640;
+
+    // Re-crop center 640px box so rotated corners do not leave dark borders
+    const targetSide = Math.min(rw, rh, 640);
+    const originX = Math.max(0, Math.round((rw - targetSide) / 2));
+    const originY = Math.max(0, Math.round((rh - targetSide) / 2));
+
+    const cropCtx = ImageManipulator.manipulate(rotRef.uri);
+    cropCtx.crop({ originX, originY, width: targetSide, height: targetSide });
+    cropCtx.resize({ width: 640 });
+    const finalRef = await cropCtx.renderAsync();
+    const out = await finalRef.saveAsync({ compress: 0.88, format: SaveFormat.JPEG, base64: true });
+
+    if (Platform.OS !== "web") {
       try {
-        new File(out.uri).delete();
+        if (rotRef.uri.startsWith("file:")) new File(rotRef.uri).delete();
+        if (out.uri.startsWith("file:")) new File(out.uri).delete();
       } catch {}
     }
     const b64 = (out.base64 ?? (out.uri.startsWith("data:") ? out.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
@@ -47,7 +63,7 @@ export async function straightenPhoto(uri: string, degrees: number): Promise<str
   return uri;
 }
 
-// Crops and auto-centers the object inside the guide circle/frame at 960px HD.
+// Crops the center guide area and keeps 640px resolution for crisp coin/stamp/card details.
 export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "square"): Promise<string> {
   try {
     const probe = ImageManipulator.manipulate(uri);
@@ -56,7 +72,7 @@ export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "
     const h = meta.height || 1000;
 
     const cropW = mode === "edge" ? Math.round(w * 0.84) : Math.round(Math.min(w, h) * 0.56);
-    const cropH = mode === "edge" ? Math.round(h * 0.22) : cropW;
+    const cropH = mode === "edge" ? Math.round(h * 0.38) : cropW;
     const originX = Math.max(0, Math.round((w - cropW) / 2));
     const originY = Math.max(0, Math.round((h - cropH) / 2));
 
@@ -64,7 +80,7 @@ export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "
     ctx.crop({ originX, originY, width: cropW, height: cropH });
     ctx.resize({ width: 640 });
     const ref = await ctx.renderAsync();
-    const out = await ref.saveAsync({ compress: 0.9, format: SaveFormat.JPEG, base64: true });
+    const out = await ref.saveAsync({ compress: 0.88, format: SaveFormat.JPEG, base64: true });
     if (Platform.OS !== "web" && out.uri.startsWith("file:")) {
       try {
         new File(out.uri).delete();
