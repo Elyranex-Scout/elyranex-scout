@@ -82,7 +82,6 @@ export default function ScannerScreen() {
       loadMinProfit().then(setMinProfit);
       return () => {
         setFocused(false);
-        setTorch(false);
       };
     }, []),
   );
@@ -272,7 +271,6 @@ export default function ScannerScreen() {
       setPhase("error");
       return;
     }
-    setTorch(false);
     setPhase("analyzing");
     try {
       const res = await job(key);
@@ -710,8 +708,8 @@ export default function ScannerScreen() {
                   <Icon name="zoom-in" size={16} color="#FFF" />
                   <Text style={styles.toolText}>{ZOOM_LABELS.at(zoomIdx)}</Text>
                 </Pressable>
-                <Pressable onPress={() => setTorch((t) => !t)} style={[styles.toolBtn, torch && styles.toolBtnActive]}>
-                  <Icon name={torch ? "flashlight" : "flashlight-off"} size={16} color={torch ? colors.onBrandPrimary : "#FFF"} />
+                <Pressable onPress={() => setSoftLight((s) => !s)} style={[styles.toolBtn, softLight && styles.toolBtnActive]}>
+                  <Icon name={softLight ? "flashlight" : "flashlight-off"} size={16} color={softLight ? colors.onBrandPrimary : "#FFF"} />
                 </Pressable>                {isCollectible ? (
                   <Pressable onPress={() => setAutoSnap((a) => !a)} style={[styles.toolBtn, autoSnap && styles.toolBtnActive]}>
                     <Icon name="camera-iris" size={16} color={autoSnap ? colors.onBrandPrimary : "#FFF"} />
