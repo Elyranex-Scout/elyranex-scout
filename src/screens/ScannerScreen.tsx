@@ -26,8 +26,8 @@ type Phase = "camera" | "analyzing" | "result" | "error";
 type FrameQuality = { ready: boolean; hint: string };
 
 const BARCODE_TYPES = ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] as const;
-const ZOOM_LEVELS = [0, 0.2, 0.35, 0.55] as const;
-const ZOOM_LABELS = ["1x", "1,2x", "1,5x", "2x"] as const;
+const ZOOM_SCALES = [1, 1.5, 2, 2.5] as const;
+const ZOOM_LABELS = ["1x", "1,5x", "2x", "2,5x"] as const;
 
 const REF_POINTS = [
   { x: "26%", y: "28%" }, { x: "52%", y: "20%" }, { x: "76%", y: "32%" },
