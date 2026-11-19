@@ -43,6 +43,7 @@ export default function ItemDetail() {
   const [busy, setBusy] = useState<"expense" | "sell" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [listingOpen, setListingOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([getItem(id), getDeviceId()])
@@ -202,6 +203,11 @@ export default function ItemDetail() {
             </Pressable>
             {notice ? <Text style={styles.notice} testID="item-notice">{notice}</Text> : null}
             {error ? <Text style={styles.error} testID="item-error">{error}</Text> : null}
+                     <Pressable onPress={() => setListingOpen(true)} style={({ pressed }) => [styles.outline, pressed && styles.pressed]}>
+           <Icon name="creation" size={22} color={colors.brandPrimary} />
+           <Text style={styles.outlineText}>CREAR ANUNCIO IA</Text>
+         </Pressable>
+
             <Pressable testID="mark-sold-button" onPress={() => { setSelling(true); setError(""); }} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
               <Icon name="cash-check" size={28} color={colors.onBrandPrimary} />
               <Text style={styles.ctaText}>MARCAR COMO VENDIDO</Text>
@@ -209,6 +215,24 @@ export default function ItemDetail() {
           </View>
         )}
       </KeyboardAwareScrollView>
+            <ListingModal
+        visible={listingOpen}
+        onClose={() => setListingOpen(false)}
+        itemData={
+          item
+            ? {
+                nombre: item.nombre,
+                marca: item.marca,
+                modelo: item.modelo_edicion,
+                estado: item.estado_visual,
+                precio: item.ver,
+                detalles: item.explicacion,
+                esColeccionismo: false,
+              }
+            : null
+        }
+      />
+
     </View>
   );
 }
