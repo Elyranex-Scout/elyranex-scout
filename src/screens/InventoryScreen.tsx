@@ -2,7 +2,7 @@ import { Icon } from "@/src/components/Icon";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getDeviceId, photoUrl } from "@/src/api";
@@ -17,6 +17,7 @@ import { useVertical } from "@/src/vertical";
 
 type Status = "En stock" | "Vendido";
 type ColFilter = "todas" | CollectionDest;
+type SortBy = "recent" | "value" | "profit";
 
 export default function InventoryScreen() {
   const styles = useStyles();
@@ -38,6 +39,8 @@ export default function InventoryScreen() {
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
   const [inspectItem, setInspectItem] = useState<Item | null>(null);
   const [listingItem, setListingItem] = useState<Item | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("recent");
 
   const [toast, setToast] = useState("");
 
@@ -74,18 +77,31 @@ export default function InventoryScreen() {
     return Array.from(set);
   }, [items, isCollectible]);
 
-  const visible = useMemo(() => {
-    if (!isCollectible) {
-      return items.filter((i) => i.estado === status && (!category || i.categoria === category));
-    }
-    return items.filter((i) => {
+    const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = items.filter((i) => {
+      if (q) {
+        const hay = `${i.nombre} ${i.marca} ${i.modelo_edicion} ${i.categoria} ${i.collectible_data?.album ?? ""} ${i.collectible_data?.anio ?? ""} ${i.collectible_data?.ceca ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (!isCollectible) {
+        return i.estado === status && (!category || i.categoria === category);
+      }
       const dest = i.collectible_data?.destino ?? "coleccion";
       const alb = i.collectible_data?.album ?? "";
       if (colFilter !== "todas" && dest !== colFilter) return false;
       if (selectedAlbum && alb !== selectedAlbum) return false;
       return true;
     });
-  }, [items, isCollectible, status, category, colFilter, selectedAlbum]);
+
+    if (sortBy === "value") {
+      return [...filtered].sort((a, b) => (b.ver || 0) - (a.ver || 0));
+    }
+    if (sortBy === "profit") {
+      return [...filtered].sort((a, b) => (b.ver - totalCost(b)) - (a.ver - totalCost(a)));
+    }
+    return filtered;
+  }, [items, isCollectible, status, category, colFilter, selectedAlbum, search, sortBy]);
 
   const colSummary = useMemo(() => {
     const totalVal = visible.reduce((acc, i) => acc + (i.ver || 0), 0);
