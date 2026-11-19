@@ -353,7 +353,14 @@ export default function ScannerScreen() {
     }
   };
 
-  const analyzeCardOnePhoto = async () => {
+    const analyzeCardOnePhoto = async () => {
+    if (busy.current || cPhotos.length < 1) return;
+    busy.current = true;
+    await runCollectible(cPhotos, (key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
+  };
+
+  const pickFromGallery = async () => {
+
       const pickFromGallery = async () => {
     if (busy.current) return;
     busy.current = true;
