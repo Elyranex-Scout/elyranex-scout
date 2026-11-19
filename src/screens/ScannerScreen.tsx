@@ -57,11 +57,10 @@ export default function ScannerScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
-
   const [cPhotos, setCPhotos] = useState<string[]>([]);
   const [cResult, setCResult] = useState<CollectibleAnalysis | null>(null);
   const [zoomIdx, setZoomIdx] = useState(1);
-  const [torch, setTorch] = useState(false);
+  const [softLight, setSoftLight] = useState(false);
   const [stampHorizontal, setStampHorizontal] = useState(false);
   const [focusPulse, setFocusPulse] = useState(false);
   const [afOn, setAfOn] = useState(true);
@@ -677,8 +676,7 @@ export default function ScannerScreen() {
                   ref={cameraRef}
                   style={styles.camera}
                   facing="back"
-                  zoom={ZOOM_LEVELS.at(zoomIdx) ?? 0}
-                  enableTorch={torch}
+                  zoom={0}
                   barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
                   onBarcodeScanned={!isCollectible && mode === "barcode" && phase === "camera" ? onBarcode : undefined}
                 />
