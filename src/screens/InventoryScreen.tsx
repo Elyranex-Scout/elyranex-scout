@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getDeviceId, photoUrl } from "@/src/api";
 import { AppHeader } from "@/src/components/AppHeader";
+import { ListingModal } from "@/src/components/ListingModal";
 import { CATEGORIES, type Category } from "@/src/ai";
 import { daysInStock, deleteItem, fetchItems, netProfit, OLD_STOCK_DAYS, totalCost, type CollectionDest, type Item } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
@@ -36,6 +37,8 @@ export default function InventoryScreen() {
   const [colFilter, setColFilter] = useState<ColFilter>("todas");
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
   const [inspectItem, setInspectItem] = useState<Item | null>(null);
+  const [listingItem, setListingItem] = useState<Item | null>(null);
+
   const [toast, setToast] = useState("");
 
   const load = useCallback(async () => {
@@ -376,6 +379,17 @@ export default function InventoryScreen() {
                 ) : null}
 
                 <Text style={styles.modalExp}>{inspectItem.explicacion}</Text>
+             <Pressable
+               onPress={() => {
+                 const target = inspectItem;
+                 setInspectItem(null);
+                 setListingItem(target);
+               }}
+               style={styles.adModalBtn}
+             >
+               <Icon name="creation" size={18} color={colors.brandPrimary} />
+               <Text style={styles.adModalText}>CREAR ANUNCIO IA</Text>
+             </Pressable>
 
                                 <View style={styles.modalBtnRow}>
                   <Pressable
@@ -402,6 +416,23 @@ export default function InventoryScreen() {
           </View>
         </View>
       </Modal>
+   <ListingModal
+     visible={Boolean(listingItem)}
+     onClose={() => setListingItem(null)}
+     itemData={
+       listingItem
+         ? {
+             nombre: listingItem.nombre,
+             marca: listingItem.marca,
+             modelo: listingItem.modelo_edicion,
+             estado: listingItem.collectible_data?.grado ?? listingItem.estado_visual,
+             precio: listingItem.ver,
+             detalles: listingItem.explicacion,
+             esColeccionismo: true,
+           }
+         : null
+     }
+   />
 
       {toast ? (
         <View style={[styles.toast, { bottom: bottomChrome + 16 }]} testID="inventory-toast">
@@ -477,6 +508,9 @@ const useStyles = makeStyles((c) => ({
   modalSpecs: { backgroundColor: c.surfaceSecondary, borderRadius: 12, padding: 12, gap: 6, borderWidth: 1, borderColor: c.border },
   specLine: { color: c.muted, fontSize: 13, fontWeight: "700" },
   modalExp: { color: c.onSurface, fontSize: 14, lineHeight: 20 },
+  adModalBtn: { height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  adModalText: { color: c.brandPrimary, fontSize: 14, fontWeight: "900" },
+
   modalBtnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   deleteModalBtn: { flex: 0.9, height: 50, borderRadius: 12, backgroundColor: c.error, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   deleteModalText: { color: c.onError, fontSize: 14, fontWeight: "900" },
