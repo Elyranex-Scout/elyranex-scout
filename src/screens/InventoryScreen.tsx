@@ -217,16 +217,16 @@ export default function InventoryScreen() {
         <View style={styles.filters}>
           <View style={styles.colSummaryCard}>
             <View style={styles.colStat}>
-              <Text style={styles.colStatLabel}>VALOR ESTIMADO</Text>
-              <Text style={styles.colStatValue}>{euro(colSummary.totalVal)}</Text>
+              <Text style={styles.colStatLabel} numberOfLines={1}>VALOR TOTAL</Text>
+              <Text style={styles.colStatValue} numberOfLines={1}>{euro(colSummary.totalVal)}</Text>
             </View>
             <View style={styles.colStat}>
-              <Text style={styles.colStatLabel}>COSTE PAGADO</Text>
-              <Text style={styles.colStatSub}>{euro(colSummary.totalPaid)}</Text>
+              <Text style={styles.colStatLabel} numberOfLines={1}>COSTE PAGADO</Text>
+              <Text style={styles.colStatSub} numberOfLines={1}>{euro(colSummary.totalPaid)}</Text>
             </View>
             <View style={styles.colStat}>
-              <Text style={styles.colStatLabel}>PIEZAS</Text>
-              <Text style={styles.colStatSub}>{colSummary.count}</Text>
+              <Text style={styles.colStatLabel} numberOfLines={1}>PIEZAS</Text>
+              <Text style={styles.colStatSub} numberOfLines={1}>{colSummary.count}</Text>
             </View>
           </View>
 
