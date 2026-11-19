@@ -92,3 +92,48 @@ export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "
   const fallback = await compressPhoto(uri);
   return `data:image/jpeg;base64,${fallback}`;
 }
+// Opens the device photo gallery (or native file picker) and returns a compressed/cropped data URI.
+export function pickGalleryImage(hdSquare = false): Promise<string | null> {
+  if (Platform.OS !== "web" || typeof document === "undefined") {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const rawUri = typeof reader.result === "string" ? reader.result : "";
+        if (!rawUri) {
+          resolve(null);
+          return;
+        }
+        try {
+          if (hdSquare) {
+            // For gallery photos of coins/stamps/cards, resize to 640px preserving full image without tight camera crop
+            const ctx = ImageManipulator.manipulate(rawUri);
+            ctx.resize({ width: 640 });
+            const ref = await ctx.renderAsync();
+            const out = await ref.saveAsync({ compress: 0.88, format: SaveFormat.JPEG, base64: true });
+            const b64 = (out.base64 ?? (out.uri.startsWith("data:") ? out.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
+            resolve(b64 ? `data:image/jpeg;base64,${b64}` : rawUri);
+          } else {
+            const b64 = await compressPhoto(rawUri);
+            resolve(`data:image/jpeg;base64,${b64}`);
+          }
+        } catch {
+          resolve(rawUri);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+}
