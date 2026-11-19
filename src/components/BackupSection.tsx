@@ -104,9 +104,6 @@ export function BackupSection() {
     input.click();
   };
 
-    }
-  };
-
   return (
     <View style={styles.section} testID="backup-section">
       <View style={styles.labelRow}>
