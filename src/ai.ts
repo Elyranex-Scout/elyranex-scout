@@ -415,3 +415,39 @@ export async function analyzeCard(
     explicacion: String(raw.explicacion ?? ""),
   };
 }
+export type GeneratedListing = {
+  titulo: string;
+  descripcion: string;
+  plataforma_sugerida: string;
+};
+
+export async function generateListing(
+  apiKey: string,
+  payload: {
+    nombre: string;
+    marca?: string;
+    modelo?: string;
+    estado?: string;
+    precio?: number;
+    detalles?: string;
+    esColeccionismo?: boolean;
+  }
+): Promise<GeneratedListing> {
+  const prompt = [
+    "Eres un experto redactor de anuncios de compraventa en España (Wallapop, Vinted, Todocolección, Cardmarket).",
+    payload.esColeccionismo
+      ? "Redacta un anuncio profesional para una pieza de coleccionismo (moneda, sello o carta), destacando autenticidad, año/ceca/expansión, estado de conservación y envío protegido."
+      : "Redacta un anuncio atractivo para un artículo de segunda mano, destacando marca, estado real, puntos fuertes y envío rápido.",
+    "No inventes defectos ni accesorios no mencionados. Tono cercano, claro y persuasivo en español.",
+    'Responde SOLO con un JSON estricto: {"titulo": "máx 60 caracteres con palabras clave", "descripcion": "3 o 4 párrafos cortos con viñetas", "plataforma_sugerida": "Wallapop / Vinted / Todocolección"}',
+    `Datos del artículo: ${JSON.stringify(payload)}`,
+  ].join("\n");
+
+  const { text } = await call(apiKey, [{ type: "text", text: prompt }], false);
+  const raw = JSON.parse(cleanJsonText(text)) as GeneratedListing;
+  return {
+    titulo: String(raw.titulo ?? payload.nombre),
+    descripcion: String(raw.descripcion ?? payload.detalles ?? ""),
+    plataforma_sugerida: String(raw.plataforma_sugerida ?? "Wallapop"),
+  };
+}
