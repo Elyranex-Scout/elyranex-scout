@@ -703,27 +703,31 @@ export default function ScannerScreen() {
                 )}
               </Pressable>
 
-              <View style={styles.macroTools}>
-                <Pressable onPress={() => setZoomIdx((z) => (z + 1) % ZOOM_LEVELS.length)} style={styles.toolBtn}>
-                  <Icon name="zoom-in" size={16} color="#FFF" />
-                  <Text style={styles.toolText}>{ZOOM_LABELS.at(zoomIdx)}</Text>
-                </Pressable>
-                <Pressable onPress={() => setSoftLight((s) => !s)} style={[styles.toolBtn, softLight && styles.toolBtnActive]}>
-                  <Icon name={softLight ? "flashlight" : "flashlight-off"} size={16} color={softLight ? colors.onBrandPrimary : "#FFF"} />
-                </Pressable>                {isCollectible ? (
-                  <Pressable onPress={() => setAutoSnap((a) => !a)} style={[styles.toolBtn, autoSnap && styles.toolBtnActive]}>
+                            <>
+                {isCollectible ? (
+                  <Pressable onPress={() => setAutoSnap((a) => !a)} style={[styles.cornerTool, styles.cornerTopLeft, autoSnap && styles.toolBtnActive]}>
                     <Icon name="camera-iris" size={16} color={autoSnap ? colors.onBrandPrimary : "#FFF"} />
                     <Text style={[styles.toolText, autoSnap && { color: colors.onBrandPrimary }]}>Auto</Text>
                   </Pressable>
                 ) : null}
 
+                <Pressable onPress={() => setZoomIdx((z) => (z + 1) % ZOOM_SCALES.length)} style={[styles.cornerTool, styles.cornerTopRight]}>
+                  <Icon name="magnify" size={16} color="#FFF" />
+                  <Text style={[styles.toolText]}>{ZOOM_LABELS.at(zoomIdx)}</Text>
+                </Pressable>
+
+                <Pressable onPress={() => setSoftLight((s) => !s)} style={[styles.cornerTool, styles.cornerBottomRight, softLight && styles.toolBtnActive]}>
+                  <Icon name="white-balance-sunny" size={17} color={softLight ? colors.onBrandPrimary : "#FFF"} />
+                </Pressable>
+
                 {isCollectible && cKind === "sello" ? (
-                  <Pressable onPress={() => setStampHorizontal((h) => !h)} style={styles.toolBtn}>
+                  <Pressable onPress={() => setStampHorizontal((h) => !h)} style={[styles.cornerTool, styles.cornerBottomLeft]}>
                     <Icon name="camera-retake" size={16} color="#FFF" />
                     <Text style={styles.toolText}>{stampHorizontal ? "Hor." : "Ver."}</Text>
                   </Pressable>
                 ) : null}
-              </View>
+              </>
+
 
               {isCollectible && cKind !== "sello" ? (
                 <View style={styles.slotStrip}>
@@ -892,7 +896,11 @@ const useStyles = makeStyles((c) => ({
   stampGuide: { width: 175, height: 220, borderRadius: 8, borderWidth: 3.5, backgroundColor: "rgba(0,0,0,0.25)" },
   stampGuideHoriz: { width: 230, height: 170 },
   cardGuide: { width: 195, height: 270, borderRadius: 14, borderWidth: 3.5 },
-  macroTools: { position: "absolute", right: 10, top: 12, gap: 8 },
+    cornerTool: { position: "absolute", zIndex: 10, minWidth: 46, height: 36, paddingHorizontal: 8, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  cornerTopLeft: { top: 10, left: 10 },
+  cornerTopRight: { top: 10, right: 10 },
+  cornerBottomRight: { bottom: 10, right: 10 },
+  cornerBottomLeft: { bottom: 10, left: 10 },
   toolBtn: { height: 38, paddingHorizontal: 9, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   toolBtnActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
   toolText: { color: "#FFF", fontSize: 11, fontWeight: "900" },
