@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { getDeviceId, photoUrl } from "@/src/api";
 import { EuroInput } from "@/src/components/EuroInput";
+import { ListingModal } from "@/src/components/ListingModal";
 import { OptionGrid } from "@/src/components/OptionGrid";
 import {
   addExpense,
