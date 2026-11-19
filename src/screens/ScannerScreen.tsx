@@ -15,7 +15,7 @@ import { ResultView } from "@/src/components/scanner/ResultView";
 import { analyzeBarcode, analyzeCard, analyzeCoin, analyzePhoto, analyzeStamp, analyzeText, type Analysis } from "@/src/ai";
 import { createItem, newClientId, type CollectiblePhotos, type CollectionDest, type Origin } from "@/src/inventory";
 import { usesNativeTabs } from "@/src/navigation";
-import { compressPhoto, cropCollectibleHD, straightenCoinByClock } from "@/src/photo";
+import { compressPhoto, cropCollectibleHD, pickGalleryImage, straightenCoinByClock } from "@/src/photo";
 import { DEFAULT_MIN_PROFIT, loadAiKey, loadMinProfit } from "@/src/settings";
 import { makeStyles, useTheme } from "@/src/theme";
 import { computeVerdict, type Verdict } from "@/src/verdict";
