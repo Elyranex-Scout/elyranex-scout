@@ -354,6 +354,43 @@ export default function ScannerScreen() {
   };
 
   const analyzeCardOnePhoto = async () => {
+      const pickFromGallery = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      const pickedUri = await pickGalleryImage(isCollectible);
+      if (!pickedUri) {
+        busy.current = false;
+        return;
+      }
+      if (!isCollectible) {
+        setPhotoUri(pickedUri);
+        await runReventa((key) => analyzePhoto(key, pickedUri));
+        return;
+      }
+
+      const nextList = [...cPhotos, pickedUri];
+      setCPhotos(nextList);
+
+      if (cKind === "sello") {
+        await runCollectible(nextList, (key) => analyzeStamp(key, pickedUri));
+      } else if (cKind === "moneda" && nextList.length >= 3) {
+        await runCollectible(nextList, (key) =>
+          analyzeCoin(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)!, canto: nextList.at(2)! })
+        );
+      } else if (cKind === "carta" && nextList.length >= 2) {
+        await runCollectible(nextList, (key) =>
+          analyzeCard(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)! })
+        );
+      } else {
+        busy.current = false;
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "No se pudo cargar la imagen.");
+      setPhase("error");
+    }
+  };
+
     if (busy.current || cPhotos.length < 1) return;
     busy.current = true;
     await runCollectible(cPhotos, (key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
@@ -744,7 +781,12 @@ export default function ScannerScreen() {
                 <Text style={styles.ruleText} numberOfLines={1}>Luz Verde desde <Text style={styles.ruleValue}>{minProfit} €</Text> de beneficio</Text>
               </View>
             ) : null}
-            <View style={styles.actionRow}>
+            <View style={styles.actionRow}>              {!isManual && (isCollectible || mode === "photo") ? (
+                <Pressable onPress={pickFromGallery} style={styles.galleryBtn} hitSlop={6}>
+                  <Icon name="image-multiple" size={22} color={colors.brandPrimary} />
+                </Pressable>
+              ) : null}
+
               <View style={styles.priceBox}>
                 <TextInput value={askingText} onChangeText={(t) => setAskingText(t.replace(/[^0-9.,]/g, "").slice(0, 7))} placeholder="¿Cuánto pide?" placeholderTextColor={colors.muted} keyboardType="decimal-pad" returnKeyType="done" style={[styles.priceInput, !askingText && styles.priceInputEmpty]} />
                 {askingText ? (
@@ -887,6 +929,7 @@ const useStyles = makeStyles((c) => ({
   clear: { marginRight: 4 },
   priceEuro: { color: c.onSurfaceTertiary, fontSize: 20, fontWeight: "900" },
   shutter: { flex: 1.15, height: 56, borderRadius: 12, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 8 },
+  galleryBtn: { width: 52, height: 56, borderRadius: 12, borderWidth: 2, borderColor: c.brandPrimary, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   shutterDisabled: { opacity: 0.45 },
   shutterLocked: { backgroundColor: "#EF4444", opacity: 0.65 },
   shutterText: { color: c.onBrandPrimary, fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
