@@ -229,6 +229,29 @@ export async function deleteItem(id: string): Promise<void> {
 
 export const totalCost = (i: Item) => i.precio_pagado + i.gastos_extra;
 export const netProfit = (i: Item) => (i.precio_venta ?? 0) - (i.comisiones ?? 0) - totalCost(i);
+export async function exportBackupJson(): Promise<string> {
+  const items = await readItems();
+  const payload = {
+    app: "elyranex-scout",
+    version: 2,
+    exported_at: new Date().toISOString(),
+    items,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+export async function importBackupJson(rawJson: string): Promise<{ added: number; total: number }> {
+  const parsed = JSON.parse(rawJson);
+  const incoming: Item[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+  if (!incoming.length) throw new Error("El archivo no contiene artículos válidos.");
+
+  const current = await readItems();
+  const existingIds = new Set(current.map((i) => i.id));
+  const newOnes = incoming.filter((i) => i && typeof i.id === "string" && !existingIds.has(i.id));
+  const merged = [...newOnes, ...current];
+  await writeItems(merged);
+  return { added: newOnes.length, total: merged.length };
+}
 
 export function daysInStock(i: Item): number {
   const end = i.fecha_venta ? new Date(i.fecha_venta).getTime() : Date.now();
