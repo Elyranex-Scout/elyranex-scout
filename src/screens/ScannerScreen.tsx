@@ -671,7 +671,6 @@ export default function ScannerScreen() {
                   ref={cameraRef}
                   style={styles.camera}
                   facing="back"
-                  autofocus={afOn ? "on" : "off"}
                   zoom={ZOOM_LEVELS.at(zoomIdx) ?? 0}
                   enableTorch={torch}
                   barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
