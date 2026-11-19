@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Keyboard, Platform, Pressable, Text, TextInput, Vibration, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { AppHeader } from "@/src/components/AppHeader";
 import { BuyModal } from "@/src/components/scanner/BuyModal";
 import { CollectibleResultView, type CollectibleAnalysis } from "@/src/components/scanner/CollectibleResultView";
