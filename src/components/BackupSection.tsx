@@ -39,106 +39,7 @@ export function BackupSection() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
-
   const restore = async () => {
-      const downloadFileBackup = async () => {
-    setMsg(null);
-    try {
-      const jsonStr = await exportBackupJson();
-      if (Platform.OS === "web" && typeof document !== "undefined") {
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const stamp = new Date().toISOString().slice(0, 10);
-        a.href = url;
-        a.download = `elyranex-backup-${stamp}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        setMsg({ ok: true, text: "Copia de seguridad descargada (.json con fotos)." });
-      } else {
-        await Clipboard.setStringAsync(jsonStr);
-        setMsg({ ok: true, text: "Copia JSON copiada al portapapeles." });
-      }
-    } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "No se pudo exportar la copia." });
-    }
-  };
-
-  const uploadFileBackup = () => {
-    if (Platform.OS !== "web" || typeof document === "undefined") {
-      setMsg({ ok: false, text: "Usa el código ELX en app nativa." });
-      return;
-    }
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json,.json";
-    input.onchange = () => {
-      const file = input.files?.item(0);
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const text = typeof reader.result === "string" ? reader.result : "";
-          const res = await importBackupJson(text);
-          setMsg({ ok: true, text: `Restauración lista: ${res.added} pieza(s) nuevas añadidas (${res.total} en total).` });
-        } catch (e) {
-          setMsg({ ok: false, text: e instanceof Error ? e.message : "Archivo JSON no válido." });
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
-      const downloadFileBackup = async () => {
-    setMsg(null);
-    try {
-      const jsonStr = await exportBackupJson();
-      if (Platform.OS === "web" && typeof document !== "undefined") {
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const stamp = new Date().toISOString().slice(0, 10);
-        a.href = url;
-        a.download = `elyranex-backup-${stamp}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        setMsg({ ok: true, text: "Copia de seguridad descargada (.json con fotos)." });
-      } else {
-        await Clipboard.setStringAsync(jsonStr);
-        setMsg({ ok: true, text: "Copia JSON copiada al portapapeles." });
-      }
-    } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "No se pudo exportar la copia." });
-    }
-  };
-
-  const uploadFileBackup = () => {
-    if (Platform.OS !== "web" || typeof document === "undefined") {
-      setMsg({ ok: false, text: "Usa el código ELX en app nativa." });
-      return;
-    }
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json,.json";
-    input.onchange = () => {
-      const file = input.files?.item(0);
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const text = typeof reader.result === "string" ? reader.result : "";
-          const res = await importBackupJson(text);
-          setMsg({ ok: true, text: `Restauración lista: ${res.added} pieza(s) nuevas añadidas (${res.total} en total).` });
-        } catch (e) {
-          setMsg({ ok: false, text: e instanceof Error ? e.message : "Archivo JSON no válido." });
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
     setRestoring(true);
     setMsg(null);
     try {
@@ -151,6 +52,58 @@ export function BackupSection() {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "No se pudo restaurar." });
     } finally {
       setRestoring(false);
+    }
+  };
+
+  const downloadFileBackup = async () => {
+    setMsg(null);
+    try {
+      const jsonStr = await exportBackupJson();
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const stamp = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `elyranex-backup-${stamp}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setMsg({ ok: true, text: "Copia de seguridad descargada (.json con fotos)." });
+      } else {
+        await Clipboard.setStringAsync(jsonStr);
+        setMsg({ ok: true, text: "Copia JSON copiada al portapapeles." });
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "No se pudo exportar la copia." });
+    }
+  };
+
+  const uploadFileBackup = () => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      setMsg({ ok: false, text: "Usa el código ELX en app nativa." });
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = () => {
+      const file = input.files?.item(0);
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          const res = await importBackupJson(text);
+          setMsg({ ok: true, text: `Restauración lista: ${res.added} pieza(s) nuevas añadidas (${res.total} en total).` });
+        } catch (e) {
+          setMsg({ ok: false, text: e instanceof Error ? e.message : "Archivo JSON no válido." });
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
     }
   };
 
