@@ -99,20 +99,12 @@ const INSTRUCTIONS = [
      'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"nombre": string, "marca": string, "modelo_edicion": string, "estado": "Nuevo"|"Muy bueno"|"Bueno"|"Usado"|"Dañado", "categoria": "Coleccionismo"|"Electrónica"|"Ropa"|"Hogar"|"Juguetes"|"Otros", "precio_nuevo": número, "ver": número, "demanda": "Alta"|"Media"|"Baja", "explicacion": "2 o 3 frases cortas en español (máx. 300 caracteres)"}',
 ].join("\n");
 
-
 const COIN_INSTRUCTIONS = [
-  "Eres un experto numismático internacional y tasador prudente. Analizas TRES fotografías recortadas en alta definición de la misma moneda: 1) ANVERSO (Cara nacional), 2) REVERSO (Cara común / valor facial) y 3) CANTO (Borde / perfil).",
-  "PROTOCOLO OBLIGATORIO DE 5 PUNTOS DE REFERENCIA ANTES DE IDENTIFICAR:",
-  "1. LEYENDA Y TEXTO: Transcribe mentalmente todas las palabras y letras visibles (ej. EURO CENT, ESPAÑA, PESETAS, REY DE ESPAÑA, LIBERTÉ, etc.). Si pone EURO CENT o € es un EURO, NUNCA pesetas.",
-  "2. CIFRA Y VALOR FACIAL: Lee el número grande del reverso (1, 2, 5, 10, 20, 50, 1, 2) y el diseño del globo terráqueo o mapa europeo.",
-  "3. AÑO Y MARCA DE CECA: Busca los 4 dígitos del año y el símbolo de ceca (M coronada = Madrid, estrellas con año, letra de ceca alemana A/D/F/G/J, etc.).",
-  "4. COLOR Y METAL APARENTE: Distingue acero cobrizo rojizo (1, 2, 5 céntimos), oro nórdico dorado (10, 20, 50 céntimos), bimetálica (1 y 2 euros), cuproníquel plateado o bronce-aluminio.",
-  "5. CANTO (3ª FOTO): Examina la tercera imagen para confirmar el tipo de canto real (Liso, Liso con ranura central, Festoneado, Estriado, Con leyenda incusa, etc.) y si tiene golpes.",
-  "VALORACIÓN PRUDENTE: Las monedas circuladas comunes (como 5 céntimos de euro modernos) valen su valor facial o entre 0.05 y 0.50 euros en grados circulados (MBC/EBC) y solo algo más en Sin Circular (SC). Sé realista.",
-  'FORMATO: responde SOLO con un objeto JSON estricto con estas claves: {"tipo_pieza": "moneda", "pais": string, "denominacion": string, "anio": string, "ceca": string, "metal": string, "tirada_estimada": string, "rareza": "Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara", "tipo_canto": string, "especificaciones": {"peso_g": string, "diametro_mm": string, "grosor_mm": string}, "grado_estimado": "SC"|"EBC"|"MBC"|"BC", "precios_por_grado": {"SC": [number, number], "EBC": [number, number], "MBC": [number, number], "BC": [number, number]}, "rotacion_anverso": hora del reloj (entero de 1 a 12, donde 12 es recta) hacia donde apunta la parte superior de la imagen 1 para que las letras (ej. ESPAÑA) y el año (2025) queden totalmente horizontales y legibles como en un libro, "rotacion_reverso": hora del reloj (entero de 1 a 12, donde 12 es recta) hacia donde apunta la parte superior de la imagen 2 para que las letras (EURO CENT) queden totalmente horizontales y el número del valor recto, "explicacion": "2 o 3 frases en español detallando leyenda leída, país, año, ceca, canto y estado"}',
+  "Eres un experto numismático y tasador prudente. Analizas 3 fotos HD de una moneda: 1) ANVERSO, 2) REVERSO y 3) CANTO.",
+  "REGLAS: 1) Lee leyendas y texto exacto (EURO CENT/€ = euro, nunca pesetas). 2) Lee valor facial y diseño. 3) Busca año y marca de ceca (M coronada=Madrid, etc.). 4) Identifica metal/color (acero cobrizo, oro nórdico, bimetálica, cuproníquel). 5) Examina el canto en la 3ª foto (Liso, Estriado, Festoneado, Con leyenda, golpes).",
+  "Tasación realista y prudente en euros (monedas circuladas comunes valen facial o 0.05-0.50 €).",
+  'Responde SOLO JSON estricto: {"tipo_pieza":"moneda","pais":string,"denominacion":string,"anio":string,"ceca":string,"metal":string,"tirada_estimada":string,"rareza":"Muy común"|"Común"|"Escasa"|"Rara"|"Muy rara","tipo_canto":string,"especificaciones":{"peso_g":string,"diametro_mm":string,"grosor_mm":string},"grado_estimado":"SC"|"EBC"|"MBC"|"BC","precios_por_grado":{"SC":[number,number],"EBC":[number,number],"MBC":[number,number],"BC":[number,number]},"rotacion_anverso":entero 1..12 para dejar texto superior recto,"rotacion_reverso":entero 1..12 para dejar valor recto,"explicacion":"2 frases en español con leyenda, país, año, ceca, canto y estado"}',
 ].join("\n");
-
-
 
 const STAMP_INSTRUCTIONS = [
   "Eres un experto filatélico y tasador prudente. Analizas DOS fotografías de un sello postal: 1) Anverso (imagen y dentado) y 2) Reverso (goma y charnela).",
