@@ -4,7 +4,7 @@ import { storage } from "@/src/utils/storage";
 const BASE = "/api/groq";
 const MODEL_KEY = "groq_model_v2";
 const PRIMARY = "meta-llama/llama-4-scout-17b-16e-instruct";
-const SECONDARY = "qwen/qwen3.8-27b";
+const SECONDARY = "meta-llama/llama-4-scout-17b-16e-instruct";
 const TIMEOUT_MS = 25000;
 const LIST_TIMEOUT_MS = 10000;
 
@@ -183,7 +183,7 @@ async function chat(model: string, apiKey: string, content: unknown, json: boole
         model,
         messages: [{ role: "user", content }],
         temperature: json ? 0.1 : 0.2,
-        max_completion_tokens: json ? 1100 : 10,
+        max_completion_tokens: json ? 750 : 10,
         ...(json ? { response_format: { type: "json_object" } } : {}),
       }),
     },
