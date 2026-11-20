@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { Image, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { makeStyles, useTheme } from "@/src/theme";
 import { useVertical, type Vertical } from "@/src/vertical";
 
@@ -13,7 +12,6 @@ export function AppHeader({ section }: { section: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [vertical, setVertical] = useVertical();
-
   const openSettings = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/settings");
@@ -108,13 +106,16 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "space-between",
   },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
-  logoImage: {
-    width: 92,
-    height: 46,
+    logoImage: {
+    width: 112,
+    height: 48,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: c.brandPrimary,
+    overflow: "hidden",
+    backgroundColor: c.surfaceSecondary,
   },
+
   brandText: { flex: 1 },
   title: { color: c.onSurface, fontSize: 16, fontWeight: "900", letterSpacing: 0 },
   titleAccent: { color: c.brandPrimary },
