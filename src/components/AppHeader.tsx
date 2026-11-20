@@ -32,7 +32,7 @@ export function AppHeader({ section }: { section: string }) {
                   <Image
          source={require("../../assets/images/ELYRANEX SCOUT.png")}
          style={styles.logoImage}
-         resizeMode="contain"
+         resizeMode="cover"
        />
           <View style={styles.brandText}>
             <Text
@@ -109,7 +109,7 @@ const useStyles = makeStyles((c) => ({
   },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
   logoImage: {
-    width: 84,
+    width: 92,
     height: 46,
     borderRadius: 8,
     borderWidth: 1,
