@@ -3,7 +3,7 @@ import { storage } from "@/src/utils/storage";
 
 const BASE = "/api/groq";
 const MODEL_KEY = "groq_model_v3";
-const PRIMARY = "meta-models/muse-spark-open";
+const PRIMARY = "qwen/qwen3.8-27b";
 const SECONDARY = "qwen/qwen3.8-27b";
 const TIMEOUT_MS = 25000;
 const LIST_TIMEOUT_MS = 10000;
