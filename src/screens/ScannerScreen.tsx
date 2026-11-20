@@ -64,7 +64,10 @@ export default function ScannerScreen() {
   const [stampHorizontal, setStampHorizontal] = useState(false);
   const [focusPulse, setFocusPulse] = useState(false);
   const [afOn, setAfOn] = useState(true);
-  const [frameQuality, setFrameQuality] = useState<FrameQuality>({ ready: false, hint: "Coloca la pieza dentro del aro" });
+  const [frameQuality, setFrameQuality] = useState<FrameQuality>({
+    ready: false,
+    hint: "Haz coincidir la moneda dentro del círculo",
+  });
   const [scanStep, setScanStep] = useState(0);
   const [autoSnap, setAutoSnap] = useState(true);
   const greenHoldUntil = useRef(0);
@@ -163,12 +166,14 @@ export default function ScannerScreen() {
       const avgBg = bgCount ? bgLuma / bgCount : 0;
       const now = Date.now();
 
-      if (cKind === "moneda" && cPhotos.length === 2) {
+            if (cKind === "moneda" && cPhotos.length === 2) {
         const edgeOk = avgSharp >= 8.5 || now < greenHoldUntil.current;
         if (avgSharp >= 8.5) greenHoldUntil.current = now + 1200;
         setFrameQuality({
           ready: edgeOk,
-          hint: edgeOk ? "¡Canto estable! Listo para analizar" : "Acerca el canto y toca para enfocar",
+          hint: edgeOk
+            ? "¡Canto enfocado! Pulsa el botón de abajo para capturar"
+            : "Sujeta la moneda de canto dentro del rectángulo",
         });
         return;
       }
@@ -183,7 +188,7 @@ export default function ScannerScreen() {
       const isGoodNow = activeQuadrants >= 3 && avgSharp >= 9.0;
 
       if (isGoodNow) {
-        greenHoldUntil.current = now + 1200;
+        greenHoldUntil.current = now + 1500;
         greenStreak.current += 1;
       } else if (now >= greenHoldUntil.current) {
         greenStreak.current = 0;
@@ -191,21 +196,21 @@ export default function ScannerScreen() {
 
       const stabilized = isGoodNow || now < greenHoldUntil.current;
 
-            if (stabilized) {
+      if (stabilized) {
         setFrameQuality({
           ready: true,
           hint: autoSnap
-            ? "Estabilizada · Capturando automáticamente (o pulsa el botón inferior)"
-            : "¡Estabilizada! Pulsa el botón de abajo para capturar",
+            ? "Enfocada · Capturando automáticamente..."
+            : "¡Enfocada! Pulsa el botón de abajo para capturar",
         });
         if (autoSnap && greenStreak.current >= 4) {
           greenStreak.current = 0;
-          // No reiniciamos greenHoldUntil antes de tiempo para que takePhoto() vea frameQuality.ready === true
           takePhoto();
         }
-
       } else if (activeQuadrants < 2 && avgSharp < 10) {
-        setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
+        setFrameQuality({ ready: false, hint: "Haz coincidir la moneda dentro del círculo" });
+      }
+
       } else if (activeQuadrants < 3) {
         setFrameQuality({ ready: false, hint: "Centra la pieza en el aro" });
       } else {
@@ -215,7 +220,6 @@ export default function ScannerScreen() {
 
     return () => clearInterval(timer);
   }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length, autoSnap]);
-
 
     const triggerRefocus = () => {
     if (Platform.OS !== "web") Vibration.vibrate(25);
@@ -242,7 +246,6 @@ export default function ScannerScreen() {
       } catch {}
     }
   };
-
 
   const reset = () => {
     setPhotoUri(null);
@@ -354,7 +357,6 @@ export default function ScannerScreen() {
     }
   };
 
-
   const takePhoto = async () => {
     if (busy.current || !cameraRef.current) return;
     if (isCollectible && !frameQuality.ready) {
@@ -452,7 +454,6 @@ export default function ScannerScreen() {
         input.type = "file";
         input.accept = "image/*";
         input.setAttribute("capture", "environment");
-
         input.onchange = async () => {
           const file = input.files?.at(0);
           if (!file) {
@@ -519,7 +520,6 @@ export default function ScannerScreen() {
       setPhase("error");
     }
   };
-
 
   const onBarcode = (r: BarcodeScanningResult) => {
     if (busy.current || phase !== "camera" || isCollectible) return;
@@ -706,18 +706,18 @@ export default function ScannerScreen() {
       </View>
     );
   }
-  const guideHeadline =
+    const guideHeadline =
     cKind === "moneda"
       ? cPhotos.length === 0
-        ? "1/3 · Encuadra el ANVERSO (Cara)"
+        ? "1/3 · ANVERSO (Cara)"
         : cPhotos.length === 1
-        ? "2/3 · Gira y encuadra el REVERSO (Cruz)"
-        : "3/3 · Sujeta de perfil para el CANTO"
+        ? "2/3 · REVERSO (Cruz)"
+        : "3/3 · Sujeta la moneda de canto dentro del rectángulo"
       : cKind === "sello"
       ? "Encuadra el ANVERSO del sello"
       : cPhotos.length === 0
-      ? "1/2 · Encuadra el ANVERSO de la carta"
-      : "2/2 · Encuadra el REVERSO (o analiza ya)";
+      ? "1/2 · ANVERSO de la carta"
+      : "2/2 · REVERSO de la carta";
 
   const shutterLabel = !isCollectible
     ? "ANALIZAR"
@@ -853,7 +853,6 @@ export default function ScannerScreen() {
                 ) : null}
               </>
 
-
               {isCollectible && cKind !== "sello" ? (
                 <View style={styles.slotStrip}>
                   {(cKind === "moneda" ? ["Anverso", "Reverso", "Canto"] : ["Anverso", "Reverso"]).map((lbl, idx) => {
@@ -911,14 +910,14 @@ export default function ScannerScreen() {
                 <Text style={styles.ruleText} numberOfLines={1}>Luz Verde desde <Text style={styles.ruleValue}>{minProfit} €</Text> de beneficio</Text>
               </View>
             ) : null}
-                        <View style={styles.actionRow}>
+                                    <View style={styles.actionRow}>
               {!isManual && (isCollectible || mode === "photo") ? (
                 <>
                   <Pressable onPress={pickFromGallery} style={styles.galleryBtn} hitSlop={6}>
-                    <Icon name="image-multiple" size={22} color={colors.brandPrimary} />
+                    <Icon name="image" size={20} color={colors.brandPrimary} />
                   </Pressable>
                   <Pressable onPress={pickNativeCamera} style={styles.galleryBtn} hitSlop={6}>
-                    <Icon name="camera-plus" size={22} color={colors.brandPrimary} />
+                    <Icon name="camera" size={20} color={colors.brandPrimary} />
                   </Pressable>
                 </>
               ) : null}
@@ -932,12 +931,12 @@ export default function ScannerScreen() {
               </View>
               {isManual ? (
                 <Pressable onPress={analyzeManual} disabled={!manualText.trim()} style={({ pressed }) => [styles.shutter, !manualText.trim() && styles.shutterDisabled, pressed && manualText.trim() && styles.pressed]}>
-                  <Icon name="magnify" size={22} color={colors.onBrandPrimary} />
+                  <Icon name="magnify" size={20} color={colors.onBrandPrimary} />
                   <Text style={styles.shutterText} numberOfLines={1}>ANALIZAR</Text>
                 </Pressable>
               ) : isCollectible || mode === "photo" ? (
                 <Pressable onPress={takePhoto} style={({ pressed }) => [styles.shutter, shutterLocked && styles.shutterLocked, pressed && !shutterLocked && styles.pressed]}>
-                  <Icon name="camera-iris" size={24} color={colors.onBrandPrimary} />
+                  <Icon name="camera-outline" size={22} color={colors.onBrandPrimary} />
                   <Text style={styles.shutterText} numberOfLines={1}>{shutterLabel}</Text>
                 </Pressable>
               ) : (
@@ -947,6 +946,7 @@ export default function ScannerScreen() {
                 </View>
               )}
             </View>
+
           </View>
 
           {phase === "analyzing" || phase === "error" ? (
@@ -1010,9 +1010,9 @@ const useStyles = makeStyles((c) => ({
   modeBtnActive: { backgroundColor: c.brandPrimary },
   modeLabel: { color: c.onSurface, fontSize: 11, fontWeight: "800" },
   modeLabelActive: { color: c.onBrandPrimary, fontWeight: "900" },
-  coachBanner: { backgroundColor: c.surfaceSecondary, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1.5, alignItems: "center" },
-  coachTitle: { color: c.onSurface, fontSize: 13, fontWeight: "900", textAlign: "center" },
-  coachSub: { fontSize: 11, fontWeight: "800", textAlign: "center" },
+  coachBanner: { backgroundColor: c.surfaceSecondary, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  coachTitle: { color: c.onSurface, fontSize: 12, fontWeight: "900", textAlign: "center", lineHeight: 16 },
+  coachSub: { fontSize: 11, fontWeight: "800", textAlign: "center", lineHeight: 15, marginTop: 2 },
   cameraWrap: { flex: 1, position: "relative" },
   camera: { flex: 1 },
   finder: { position: "absolute", top: 12, left: 20, right: 20, bottom: 76, alignItems: "center", justifyContent: "center" },
@@ -1027,7 +1027,7 @@ const useStyles = makeStyles((c) => ({
   stampGuide: { width: 175, height: 220, borderRadius: 8, borderWidth: 3.5, backgroundColor: "rgba(0,0,0,0.25)" },
   stampGuideHoriz: { width: 230, height: 170 },
   cardGuide: { width: 195, height: 270, borderRadius: 14, borderWidth: 3.5 },
-    cornerTool: { position: "absolute", zIndex: 10, minWidth: 46, height: 36, paddingHorizontal: 8, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  cornerTool: { position: "absolute", zIndex: 10, minWidth: 46, height: 36, paddingHorizontal: 8, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   cornerTopLeft: { top: 10, left: 10 },
   cornerTopRight: { top: 10, right: 10 },
   cornerBottomRight: { bottom: 10, right: 10 },
@@ -1063,13 +1063,13 @@ const useStyles = makeStyles((c) => ({
   ruleText: { color: c.onSurfaceTertiary, fontSize: 13, fontWeight: "700" },
   ruleValue: { color: c.brandPrimary, fontWeight: "900" },
   actionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  priceBox: { flex: 1.25, minWidth: 116, height: 54, borderRadius: 12, borderWidth: 2, borderColor: c.borderStrong, flexDirection: "row", alignItems: "center", paddingHorizontal: 8 },
+  priceBox: { flex: 1, minWidth: 0, height: 44, borderRadius: 10, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, flexDirection: "row", alignItems: "center", paddingHorizontal: 8 },
   priceInput: { flex: 1, minWidth: 0, color: c.onSurface, fontSize: 20, fontWeight: "900" },
   priceInputEmpty: { fontSize: 13, fontWeight: "700" },
   clear: { marginRight: 2 },
   priceEuro: { color: c.onSurfaceTertiary, fontSize: 17, fontWeight: "900" },
-  galleryBtn: { width: 46, height: 54, borderRadius: 12, borderWidth: 2, borderColor: c.brandPrimary, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  shutter: { flex: 1, height: 54, borderRadius: 12, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 },
+  galleryBtn: { width: 40, height: 44, borderRadius: 10, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  shutter: { height: 44, paddingHorizontal: 12, borderRadius: 10, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0 },
   shutterDisabled: { opacity: 0.45 },
   shutterLocked: { backgroundColor: "#EF4444", opacity: 0.65 },
   shutterText: { color: c.onBrandPrimary, fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
@@ -1088,6 +1088,6 @@ const useStyles = makeStyles((c) => ({
   overlayBtnText: { color: c.onBrandPrimary, fontSize: 18, fontWeight: "900" },
   overlayBtnGhost: { alignSelf: "stretch", height: 64, borderRadius: 12, borderWidth: 2, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center" },
   overlayBtnGhostText: { color: c.onSurface, fontSize: 16, fontWeight: "900" },
-  toast: { position: "absolute", left: 16, right: 16, flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderRadius: 12, backgroundColor: c.brandPrimary },
+  toast: { position: "absolute", left: 16, right: 16, bottom: 88, zIndex: 50, backgroundColor: c.brandPrimary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8 },
   toastText: { color: c.onBrandPrimary, fontSize: 17, fontWeight: "900" },
 }));
