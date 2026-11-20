@@ -64,17 +64,19 @@ export async function straightenCoinByClock(uri: string, clockHour: number): Pro
 }
 
 // Crops the center guide area and keeps 640px resolution for crisp coin/stamp/card details.
-export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "square"): Promise<string> {
+export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "square", zoomFactor = 1): Promise<string> {
   try {
     const probe = ImageManipulator.manipulate(uri);
     const meta = await probe.renderAsync();
     const w = meta.width || 1000;
     const h = meta.height || 1000;
 
-    const cropW = mode === "edge" ? Math.round(w * 0.84) : Math.round(Math.min(w, h) * 0.56);
-    const cropH = mode === "edge" ? Math.round(h * 0.38) : cropW;
+    const z = Math.max(1, zoomFactor);
+    const cropW = mode === "edge" ? Math.round((w * 0.84) / z) : Math.round((Math.min(w, h) * 0.56) / z);
+    const cropH = mode === "edge" ? Math.round((h * 0.38) / z) : cropW;
     const originX = Math.max(0, Math.round((w - cropW) / 2));
     const originY = Math.max(0, Math.round((h - cropH) / 2));
+
 
     const ctx = ImageManipulator.manipulate(uri);
     ctx.crop({ originX, originY, width: cropW, height: cropH });
