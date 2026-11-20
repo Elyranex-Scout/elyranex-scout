@@ -287,9 +287,32 @@ export default function ScannerScreen() {
       setPhase("error");
     }
   };
+   useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const scale = ZOOM_SCALES.at(zoomIdx) ?? 1;
+    try {
+      const video = document.querySelector("video") as HTMLVideoElement | null;
+      const stream = video?.srcObject as MediaStream | null;
+      const track = stream?.getVideoTracks?.().at(0);
+      if (track && typeof track.applyConstraints === "function") {
+        const caps = typeof track.getCapabilities === "function" ? (track.getCapabilities() as any) : null;
+        const adv: any[] = [{ focusMode: "continuous" }];
+        if (caps?.zoom) {
+          const clamped = Math.min(caps.zoom.max, Math.max(caps.zoom.min, scale));
+          adv.push({ zoom: clamped });
+        }
+        track.applyConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: adv,
+        }).catch(() => {});
+      }
+    } catch {}
+  }, [zoomIdx, phase]);
+
   const capturePhoto = async (cropMode?: "square" | "edge"): Promise<string> => {
     if (!cameraRef.current) throw new Error("Cámara no disponible.");
-    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.78, shutterSound: false });
+    const pic = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.85, shutterSound: false });
     const base64 = (pic.base64 ?? (pic.uri.startsWith("data:") ? pic.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
     if (Platform.OS !== "web" && pic.uri.startsWith("file:")) {
       try {
@@ -299,7 +322,7 @@ export default function ScannerScreen() {
     if (!base64) throw new Error("No se pudo capturar la foto.");
     const dataUri = `data:image/jpeg;base64,${base64}`;
     if (cropMode) {
-      return await cropCollectibleHD(dataUri, cropMode);
+      return await cropCollectibleHD(dataUri, cropMode, ZOOM_SCALES.at(zoomIdx) ?? 1);
     }
     try {
       const small = await compressPhoto(dataUri);
@@ -308,6 +331,7 @@ export default function ScannerScreen() {
       return dataUri;
     }
   };
+
 
   const takePhoto = async () => {
     if (busy.current || !cameraRef.current) return;
@@ -670,14 +694,17 @@ export default function ScannerScreen() {
           {!isManual ? (
             <>
               {focused ? (
-                <CameraView
-                  ref={cameraRef}
-                  style={styles.camera}
-                  facing="back"
-                  zoom={0}
-                  barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
-                  onBarcodeScanned={!isCollectible && mode === "barcode" && phase === "camera" ? onBarcode : undefined}
-                />
+                                <View style={[styles.camera, { transform: [{ scale: ZOOM_SCALES.at(zoomIdx) ?? 1 }] }]}>
+                  <CameraView
+                    ref={cameraRef}
+                    style={styles.camera}
+                    facing="back"
+                    zoom={0}
+                    barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
+                    onBarcodeScanned={!isCollectible && mode === "barcode" && phase === "camera" ? onBarcode : undefined}
+                  />
+                </View>
+
               ) : null}
 
               <Pressable onPress={triggerRefocus} style={styles.finder}>
