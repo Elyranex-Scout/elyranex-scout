@@ -375,7 +375,10 @@ export default function ScannerScreen() {
       const isEdgeStep = cKind === "moneda" && cPhotos.length === 2;
       const croppedUri = await capturePhoto(isEdgeStep ? "edge" : "square");
       const nextList = [...cPhotos, croppedUri];
-      setCPhotos(nextList);
+            setCPhotos(nextList);
+      greenStreak.current = 0;
+      greenHoldUntil.current = 0;
+      setAutoSnap(false);
 
       if (cKind === "sello") {
         await runCollectible(nextList, (key) => analyzeStamp(key, croppedUri));
@@ -841,7 +844,7 @@ export default function ScannerScreen() {
                 </Pressable>
 
                 <Pressable onPress={() => setSoftLight((s) => !s)} style={[styles.cornerTool, styles.cornerBottomRight, softLight && styles.toolBtnActive]}>
-                  <Icon name="white-balance-sunny" size={17} color={softLight ? colors.onBrandPrimary : "#FFF"} />
+                  <Icon name="flash" size={17} color={softLight ? colors.onBrandPrimary : "#FFF"} />
                 </Pressable>
 
                 {isCollectible && cKind === "sello" ? (
