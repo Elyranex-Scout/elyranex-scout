@@ -2,9 +2,9 @@
 import { storage } from "@/src/utils/storage";
 
 const BASE = "/api/groq";
-const MODEL_KEY = "groq_model_v2";
-const PRIMARY = "meta-llama/llama-4-scout-17b-16e-instruct";
-const SECONDARY = "meta-llama/llama-4-scout-17b-16e-instruct";
+const MODEL_KEY = "groq_model_v3";
+const PRIMARY = "meta-models/muse-spark-open";
+const SECONDARY = "qwen/qwen3.8-27b";
 const TIMEOUT_MS = 25000;
 const LIST_TIMEOUT_MS = 10000;
 
