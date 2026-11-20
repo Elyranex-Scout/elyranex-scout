@@ -209,8 +209,6 @@ export default function ScannerScreen() {
         }
       } else if (activeQuadrants < 2 && avgSharp < 10) {
         setFrameQuality({ ready: false, hint: "Haz coincidir la moneda dentro del círculo" });
-      }
-
       } else if (activeQuadrants < 3) {
         setFrameQuality({ ready: false, hint: "Centra la pieza en el aro" });
       } else {
