@@ -203,9 +203,9 @@ export default function ScannerScreen() {
             ? "Enfocada · Capturando automáticamente..."
             : "¡Enfocada! Pulsa el botón de abajo para capturar",
         });
-        if (autoSnap && greenStreak.current >= 4) {
+                if (autoSnap && greenStreak.current >= 4) {
           greenStreak.current = 0;
-          takePhoto();
+          takePhoto(true);
         }
       } else if (activeQuadrants < 2 && avgSharp < 10) {
         setFrameQuality({ ready: false, hint: "Haz coincidir la moneda dentro del círculo" });
@@ -355,14 +355,15 @@ export default function ScannerScreen() {
     }
   };
 
-  const takePhoto = async () => {
+    const takePhoto = async (force = false) => {
     if (busy.current || !cameraRef.current) return;
-    if (isCollectible && !frameQuality.ready) {
+    if (isCollectible && !force && !frameQuality.ready) {
       triggerRefocus();
       showToast(frameQuality.hint);
       return;
     }
     busy.current = true;
+
     try {
       if (!isCollectible) {
         const dataUri = await capturePhoto();
@@ -717,13 +718,13 @@ export default function ScannerScreen() {
       ? "1/2 · ANVERSO de la carta"
       : "2/2 · REVERSO de la carta";
 
-  const shutterLabel = !isCollectible
+    const shutterLabel = !isCollectible
     ? "ANALIZAR"
     : cKind === "sello"
     ? "ANALIZAR"
     : cKind === "moneda"
-    ? `FOTO ${cPhotos.length + 1}/3`
-    : `FOTO ${cPhotos.length + 1}/2`;
+    ? `${cPhotos.length + 1}/3`
+    : `${cPhotos.length + 1}/2`;
 
   const ringColor = !isCollectible || frameQuality.ready ? "#22C55E" : "#EF4444";
   const shutterLocked = isCollectible && !isManual && !frameQuality.ready;
@@ -932,11 +933,13 @@ export default function ScannerScreen() {
                   <Icon name="magnify" size={20} color={colors.onBrandPrimary} />
                   <Text style={styles.shutterText} numberOfLines={1}>ANALIZAR</Text>
                 </Pressable>
-              ) : isCollectible || mode === "photo" ? (
-                <Pressable onPress={takePhoto} style={({ pressed }) => [styles.shutter, shutterLocked && styles.shutterLocked, pressed && !shutterLocked && styles.pressed]}>
-                  <Icon name="camera-outline" size={22} color={colors.onBrandPrimary} />
+                            ) : isCollectible || mode === "photo" ? (
+                <Pressable onPress={() => takePhoto(true)} style={({ pressed }) => [styles.shutter, shutterLocked && styles.shutterLocked, pressed && !shutterLocked && styles.pressed]}>
+                  <Icon name="camera" size={20} color={colors.onBrandPrimary} />
                   <Text style={styles.shutterText} numberOfLines={1}>{shutterLabel}</Text>
                 </Pressable>
+              ) : (
+
               ) : (
                 <View style={styles.scanningHint}>
                   <ActivityIndicator color={colors.brandPrimary} />
@@ -1002,7 +1005,7 @@ export default function ScannerScreen() {
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  topBar: { backgroundColor: c.surface, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border },
+  topBar: { backgroundColor: c.surface, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border, zIndex: 20 },
   modeSwitch: { flexDirection: "row", backgroundColor: c.surfaceSecondary, borderRadius: 10, padding: 3, gap: 4 },
   modeBtn: { flex: 1, height: 36, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
   modeBtnActive: { backgroundColor: c.brandPrimary },
