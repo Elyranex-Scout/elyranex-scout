@@ -205,7 +205,6 @@ export default function ScannerScreen() {
         }
       }
 
-        }
       } else if (activeQuadrants < 2 && avgSharp < 10) {
         setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
       } else if (activeQuadrants < 3) {
