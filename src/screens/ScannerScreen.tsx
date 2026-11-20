@@ -191,15 +191,20 @@ export default function ScannerScreen() {
 
       const stabilized = isGoodNow || now < greenHoldUntil.current;
 
-      if (stabilized) {
+            if (stabilized) {
         setFrameQuality({
           ready: true,
-          hint: autoSnap ? "Estabilizada · Capturando automáticamente..." : "¡Estabilizada! Pulsa para capturar",
+          hint: autoSnap
+            ? "Estabilizada · Capturando automáticamente (o pulsa el botón inferior)"
+            : "¡Estabilizada! Pulsa el botón de abajo para capturar",
         });
         if (autoSnap && greenStreak.current >= 4) {
           greenStreak.current = 0;
-          greenHoldUntil.current = 0;
+          // No reiniciamos greenHoldUntil antes de tiempo para que takePhoto() vea frameQuality.ready === true
           takePhoto();
+        }
+      }
+
         }
       } else if (activeQuadrants < 2 && avgSharp < 10) {
         setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
@@ -398,8 +403,6 @@ export default function ScannerScreen() {
     await runCollectible(cPhotos, (key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
   };
 
-  const pickFromGallery = async () => {
-
       const pickFromGallery = async () => {
     if (busy.current) return;
     busy.current = true;
@@ -437,10 +440,88 @@ export default function ScannerScreen() {
     }
   };
 
-    if (busy.current || cPhotos.length < 1) return;
+      const pickNativeCamera = async () => {
+    if (busy.current) return;
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      await takePhoto();
+      return;
+    }
+
     busy.current = true;
-    await runCollectible(cPhotos, (key) => analyzeCard(key, { anverso: cPhotos.at(0)! }));
+    try {
+      const pickedUri = await new Promise<string | null>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.setAttribute("capture", "environment");
+
+        input.onchange = async () => {
+          const file = input.files?.at(0);
+          if (!file) {
+            resolve(null);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const rawDataUrl = typeof reader.result === "string" ? reader.result : null;
+            if (!rawDataUrl) {
+              resolve(null);
+              return;
+            }
+            try {
+              if (isCollectible) {
+                const isEdgeStep = cKind === "moneda" && cPhotos.length === 2;
+                const cropped = await cropCollectibleHD(rawDataUrl, isEdgeStep ? "edge" : "square", 1);
+                resolve(cropped);
+              } else {
+                const small = await compressPhoto(rawDataUrl);
+                resolve(small.startsWith("data:") ? small : `data:image/jpeg;base64,${small}`);
+              }
+            } catch {
+              resolve(rawDataUrl);
+            }
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        };
+
+        input.oncancel = () => resolve(null);
+        input.click();
+      });
+
+      if (!pickedUri) {
+        busy.current = false;
+        return;
+      }
+
+      if (!isCollectible) {
+        setPhotoUri(pickedUri);
+        await runReventa((key) => analyzePhoto(key, pickedUri));
+        return;
+      }
+
+      const nextList = [...cPhotos, pickedUri];
+      setCPhotos(nextList);
+
+      if (cKind === "sello") {
+        await runCollectible(nextList, (key) => analyzeStamp(key, pickedUri));
+      } else if (cKind === "moneda" && nextList.length >= 3) {
+        await runCollectible(nextList, (key) =>
+          analyzeCoin(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)!, canto: nextList.at(2)! })
+        );
+      } else if (cKind === "carta" && nextList.length >= 2) {
+        await runCollectible(nextList, (key) =>
+          analyzeCard(key, { anverso: nextList.at(0)!, reverso: nextList.at(1)! })
+        );
+      } else {
+        busy.current = false;
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "No se pudo abrir la cámara nativa.");
+      setPhase("error");
+    }
   };
+
 
   const onBarcode = (r: BarcodeScanningResult) => {
     if (busy.current || phase !== "camera" || isCollectible) return;
@@ -832,10 +913,16 @@ export default function ScannerScreen() {
                 <Text style={styles.ruleText} numberOfLines={1}>Luz Verde desde <Text style={styles.ruleValue}>{minProfit} €</Text> de beneficio</Text>
               </View>
             ) : null}
-            <View style={styles.actionRow}>              {!isManual && (isCollectible || mode === "photo") ? (
-                <Pressable onPress={pickFromGallery} style={styles.galleryBtn} hitSlop={6}>
-                  <Icon name="image-multiple" size={22} color={colors.brandPrimary} />
-                </Pressable>
+                        <View style={styles.actionRow}>
+              {!isManual && (isCollectible || mode === "photo") ? (
+                <>
+                  <Pressable onPress={pickFromGallery} style={styles.galleryBtn} hitSlop={6}>
+                    <Icon name="image-multiple" size={22} color={colors.brandPrimary} />
+                  </Pressable>
+                  <Pressable onPress={pickNativeCamera} style={styles.galleryBtn} hitSlop={6}>
+                    <Icon name="camera-plus" size={22} color={colors.brandPrimary} />
+                  </Pressable>
+                </>
               ) : null}
 
               <View style={styles.priceBox}>
