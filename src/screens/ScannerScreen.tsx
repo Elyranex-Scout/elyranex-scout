@@ -203,7 +203,6 @@ export default function ScannerScreen() {
           // No reiniciamos greenHoldUntil antes de tiempo para que takePhoto() vea frameQuality.ready === true
           takePhoto();
         }
-      }
 
       } else if (activeQuadrants < 2 && avgSharp < 10) {
         setFrameQuality({ ready: false, hint: "Acércala hasta llenar el círculo" });
