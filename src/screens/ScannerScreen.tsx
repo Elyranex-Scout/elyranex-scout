@@ -26,8 +26,8 @@ type Phase = "camera" | "analyzing" | "result" | "error";
 type FrameQuality = { ready: boolean; hint: string };
 
 const BARCODE_TYPES = ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] as const;
-const ZOOM_SCALES = [1, 1.5, 2, 2.5] as const;
-const ZOOM_LABELS = ["1x", "1,5x", "2x", "2,5x"] as const;
+const ZOOM_SCALES = [1.2, 1.45, 1.7, 2.0] as const;
+const ZOOM_LABELS = ["1,2x", "1,4x", "1,7x", "2x"] as const;
 
 const REF_POINTS = [
   { x: "26%", y: "28%" }, { x: "52%", y: "20%" }, { x: "76%", y: "32%" },
@@ -214,13 +214,32 @@ export default function ScannerScreen() {
   }, [isCollectible, isManual, phase, focused, cKind, cPhotos.length, autoSnap]);
 
 
-  const triggerRefocus = () => {
+    const triggerRefocus = () => {
     if (Platform.OS !== "web") Vibration.vibrate(25);
     setFocusPulse(true);
     setAfOn(false);
     setTimeout(() => setAfOn(true), 120);
     setTimeout(() => setFocusPulse(false), 650);
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      try {
+        const video = document.querySelector("video") as HTMLVideoElement | null;
+        const stream = video?.srcObject as MediaStream | null;
+        const track = stream?.getVideoTracks?.().at(0);
+        if (track && typeof track.applyConstraints === "function") {
+          track.applyConstraints({ advanced: [{ focusMode: "single-shot" } as any] })
+            .then(() =>
+              setTimeout(() => {
+                track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
+              }, 350)
+            )
+            .catch(() => {
+              track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
+            });
+        }
+      } catch {}
+    }
   };
+
 
   const reset = () => {
     setPhotoUri(null);
