@@ -29,11 +29,11 @@ export function AppHeader({ section }: { section: string }) {
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]} testID="app-header">
       <View style={styles.topRow}>
         <View style={styles.brandRow}>
-          <Image
-            source={require("../../assets/images/icon.png")}
-            style={styles.logoImage}
-            resizeMode="cover"
-          />
+                  <Image
+         source={require("../../assets/images/ELYRANEX SCOUT.png")}
+         style={styles.logoImage}
+         resizeMode="contain"
+       />
           <View style={styles.brandText}>
             <Text
               style={styles.title}
@@ -109,8 +109,8 @@ const useStyles = makeStyles((c) => ({
   },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
   logoImage: {
-    width: 42,
-    height: 42,
+    width: 84,
+    height: 46,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: c.brandPrimary,
