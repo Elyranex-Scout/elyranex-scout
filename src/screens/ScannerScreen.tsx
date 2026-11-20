@@ -940,7 +940,6 @@ export default function ScannerScreen() {
                 </Pressable>
               ) : (
 
-              ) : (
                 <View style={styles.scanningHint}>
                   <ActivityIndicator color={colors.brandPrimary} />
                   <Text style={styles.scanningText} numberOfLines={1}>Buscando código…</Text>
