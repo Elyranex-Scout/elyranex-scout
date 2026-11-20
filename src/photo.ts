@@ -77,12 +77,12 @@ export async function cropCollectibleHD(uri: string, mode: "square" | "edge" = "
     const originX = Math.max(0, Math.round((w - cropW) / 2));
     const originY = Math.max(0, Math.round((h - cropH) / 2));
 
-
     const ctx = ImageManipulator.manipulate(uri);
     ctx.crop({ originX, originY, width: cropW, height: cropH });
-    ctx.resize({ width: 640 });
+    ctx.resize({ width: 448 });
     const ref = await ctx.renderAsync();
-    const out = await ref.saveAsync({ compress: 0.88, format: SaveFormat.JPEG, base64: true });
+    const out = await ref.saveAsync({ compress: 0.82, format: SaveFormat.JPEG, base64: true });
+
     if (Platform.OS !== "web" && out.uri.startsWith("file:")) {
       try {
         new File(out.uri).delete();
@@ -120,9 +120,10 @@ export function pickGalleryImage(hdSquare = false): Promise<string | null> {
           if (hdSquare) {
             // For gallery photos of coins/stamps/cards, resize to 640px preserving full image without tight camera crop
             const ctx = ImageManipulator.manipulate(rawUri);
-            ctx.resize({ width: 640 });
+            ctx.resize({ width: 448 });
             const ref = await ctx.renderAsync();
-            const out = await ref.saveAsync({ compress: 0.88, format: SaveFormat.JPEG, base64: true });
+            const out = await ref.saveAsync({ compress: 0.82, format: SaveFormat.JPEG, base64: true });
+
             const b64 = (out.base64 ?? (out.uri.startsWith("data:") ? out.uri : "")).replace(/^data:image\/[\w.+-]+;base64,/, "");
             resolve(b64 ? `data:image/jpeg;base64,${b64}` : rawUri);
           } else {
