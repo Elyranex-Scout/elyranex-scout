@@ -72,6 +72,7 @@ export default function ScannerScreen() {
   const [autoSnap, setAutoSnap] = useState(true);
   const greenHoldUntil = useRef(0);
   const greenStreak = useRef(0);
+  const autoCooldownUntil = useRef(0);
   const [errorMsg, setErrorMsg] = useState("");
   const [needsKey, setNeedsKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -166,29 +167,52 @@ export default function ScannerScreen() {
       const avgBg = bgCount ? bgLuma / bgCount : 0;
       const now = Date.now();
 
-            if (cKind === "moneda" && cPhotos.length === 2) {
-        const edgeOk = avgSharp >= 8.5 || now < greenHoldUntil.current;
-        if (avgSharp >= 8.5) greenHoldUntil.current = now + 1200;
-        setFrameQuality({
-          ready: edgeOk,
-          hint: edgeOk
-            ? "¡Canto enfocado! Pulsa el botón de abajo para capturar"
-            : "Sujeta la moneda de canto dentro del rectángulo",
-        });
+      // MODO CANTO (3/3)
+      if (cKind === "moneda" && cPhotos.length === 2) {
+        const edgeOk = avgSharp >= 13.0 || now < greenHoldUntil.current;
+        if (avgSharp >= 13.0) greenHoldUntil.current = now + 1200;
+
+        if (edgeOk) {
+          greenStreak.current += 1;
+          setFrameQuality({
+            ready: true,
+            hint: autoSnap && now >= autoCooldownUntil.current
+              ? "¡Canto nítido! Capturando automáticamente..."
+              : "¡Canto enfocado! Pulsa el botón de abajo",
+          });
+          if (autoSnap && now >= autoCooldownUntil.current && greenStreak.current >= 3) {
+            greenStreak.current = 0;
+            takePhoto(true);
+          }
+        } else {
+          if (now >= greenHoldUntil.current) greenStreak.current = 0;
+          setFrameQuality({
+            ready: false,
+            hint: "Sujeta la moneda de canto dentro del rectángulo",
+          });
+        }
         return;
       }
 
-      const diffs = [
-        qCount.at(0) ? Math.abs(qLuma.at(0) / qCount.at(0) - avgBg) : 0,
-        qCount.at(1) ? Math.abs(qLuma.at(1) / qCount.at(1) - avgBg) : 0,
-        qCount.at(2) ? Math.abs(qLuma.at(2) / qCount.at(2) - avgBg) : 0,
-        qCount.at(3) ? Math.abs(qLuma.at(3) / qCount.at(3) - avgBg) : 0,
+      // MODO MONEDA ANVERSO / REVERSO (1/3 y 2/3)
+      const qAvg = [
+        qCount.at(0) ? qLuma.at(0) / qCount.at(0) : avgBg,
+        qCount.at(1) ? qLuma.at(1) / qCount.at(1) : avgBg,
+        qCount.at(2) ? qLuma.at(2) / qCount.at(2) : avgBg,
+        qCount.at(3) ? qLuma.at(3) / qCount.at(3) : avgBg,
       ];
-      const activeQuadrants = diffs.filter((d) => d >= 11).length;
-      const isGoodNow = activeQuadrants >= 3 && avgSharp >= 9.0;
+      const diffs = qAvg.map((v) => Math.abs(v - avgBg));
+      const activeQuadrants = diffs.filter((d) => d >= 14).length;
+
+      // Comprueba que la moneda esté centrada (simetría entre los 4 cuadrantes)
+      const maxQ = Math.max(...qAvg);
+      const minQ = Math.min(...qAvg);
+      const isCentered = maxQ - minQ < 55;
+
+      const isGoodNow = activeQuadrants === 4 && isCentered && avgSharp >= 14.5;
 
       if (isGoodNow) {
-        greenHoldUntil.current = now + 1500;
+        greenHoldUntil.current = now + 1200;
         greenStreak.current += 1;
       } else if (now >= greenHoldUntil.current) {
         greenStreak.current = 0;
@@ -196,24 +220,35 @@ export default function ScannerScreen() {
 
       const stabilized = isGoodNow || now < greenHoldUntil.current;
 
+      if (now < autoCooldownUntil.current) {
+        setFrameQuality({
+          ready: stabilized,
+          hint: cPhotos.length === 1
+            ? "¡Anverso guardado! Gira la moneda para el Reverso"
+            : "¡Reverso guardado! Pon la moneda de canto",
+        });
+        return;
+      }
+
       if (stabilized) {
         setFrameQuality({
           ready: true,
           hint: autoSnap
-            ? "Enfocada · Capturando automáticamente..."
-            : "¡Enfocada! Pulsa el botón de abajo para capturar",
+            ? "Moneda centrada y nítida · Capturando..."
+            : "¡Enfocada! Pulsa el botón de abajo",
         });
-                if (autoSnap && greenStreak.current >= 4) {
+        if (autoSnap && greenStreak.current >= 3) {
           greenStreak.current = 0;
           takePhoto(true);
         }
-      } else if (activeQuadrants < 2 && avgSharp < 10) {
-        setFrameQuality({ ready: false, hint: "Haz coincidir la moneda dentro del círculo" });
       } else if (activeQuadrants < 3) {
-        setFrameQuality({ ready: false, hint: "Centra la pieza en el aro" });
+        setFrameQuality({ ready: false, hint: "Haz coincidir la moneda dentro del círculo" });
+      } else if (!isCentered || activeQuadrants < 4) {
+        setFrameQuality({ ready: false, hint: "Centra la moneda dentro del aro" });
       } else {
-        setFrameQuality({ ready: false, hint: "Enfocando · Mantén firme 1 segundo" });
+        setFrameQuality({ ready: false, hint: "Mantén firme para enfocar relieves..." });
       }
+
     }, 280);
 
     return () => clearInterval(timer);
@@ -378,7 +413,9 @@ export default function ScannerScreen() {
             setCPhotos(nextList);
       greenStreak.current = 0;
       greenHoldUntil.current = 0;
-      setAutoSnap(false);
+            autoCooldownUntil.current = Date.now() + 3000;
+      if (Platform.OS !== "web") Vibration.vibrate(40);
+      triggerRefocus();
 
       if (cKind === "sello") {
         await runCollectible(nextList, (key) => analyzeStamp(key, croppedUri));
