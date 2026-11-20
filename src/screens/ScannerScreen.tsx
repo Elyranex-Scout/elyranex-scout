@@ -69,7 +69,7 @@ export default function ScannerScreen() {
     hint: "Haz coincidir la moneda dentro del círculo",
   });
   const [scanStep, setScanStep] = useState(0);
-  const [autoSnap, setAutoSnap] = useState(true);
+  const [autoSnap, setAutoSnap] = useState(false);
   const greenHoldUntil = useRef(0);
   const greenStreak = useRef(0);
   const autoCooldownUntil = useRef(0);
@@ -188,7 +188,7 @@ export default function ScannerScreen() {
           if (now >= greenHoldUntil.current) greenStreak.current = 0;
           setFrameQuality({
             ready: false,
-            hint: "Sujeta la moneda de canto dentro del rectángulo",
+                     hint: "Sujeta el canto en el rectángulo (o pulsa cámara izq. para Macro)",
           });
         }
         return;
