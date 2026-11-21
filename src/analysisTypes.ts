@@ -1,6 +1,4 @@
 
-import type { CoinAnalysis } from "./coinTypes";
-
 export const CATEGORIES = ["Coleccionismo", "Electrónica", "Ropa", "Hogar", "Juguetes", "Otros"] as const;
 export type Category = (typeof CATEGORIES)[number];
 export type Demand = "Alta" | "Media" | "Baja";
