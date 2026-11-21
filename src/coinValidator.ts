@@ -1,4 +1,4 @@
-import type { CoinAnalysis } from "./ai";
+import type { CoinAnalysis } from "./coinTypes";
 
 export type CoinValidationIssue = {
   code: string;
